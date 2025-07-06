@@ -18,11 +18,11 @@ This is a lightweight document collaboration workflow app built with:
 <img src="screenshots/contributor_dashboard.jpg" width="500"/>
 <img src="screenshots/contributor_dashboard_2.jpg" width="500"/>
 
-<h4>Contributor - Document View</h4>
-<img src="screenshots/document_screen.jpg" width="500"/>
-
 <h4>Upload View</h4>
 <img src="screenshots/upload_screen.jpg" width="500"/>
+
+<h4>Contributor - Document View</h4>
+<img src="screenshots/document_screen.jpg" width="500"/>
 
 <h4>Reviewer - Dashboard View</h4>
 <img src="screenshots/reviewer_dashboard.jpg" width="500"/>
