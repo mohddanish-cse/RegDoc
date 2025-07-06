@@ -1,12 +1,7 @@
 from flask import Blueprint, request, jsonify
+from config.users import USERS
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-
-USERS = {
-    "alice": {"password": "pass123", "role": "contributor"},
-    "bob": {"password": "pass123", "role": "reviewer"},
-    "carol": {"password": "pass123", "role": "viewer"}
-}
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
