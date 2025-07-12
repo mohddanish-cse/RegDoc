@@ -1,22 +1,19 @@
-# RegDoc - Internal Release Notes
+# RegDoc - Release Notes
 
-## v1.1 – 2025-07-13
+## [v1.1] - 2025-07-13
 
-### 🆕 Features Added
+### Added
 
-- ✨ Search bar added to Dashboard to filter documents by name, type, or status
-- 📜 Document list made scrollable to improve UX when many documents are uploaded
-- 🧭 Moved search bar to top-right, outside of the scroll area, for cleaner layout
-- 🗂️ Placeholder for future "Reports" tab added (currently disabled)
+- Search bar for filtering documents
+- Scrollable document list with max-height
+- Reports tab placeholder (disabled)
 
-### 🛠️ Improvements
+## [v1.0] - 2025-07-06
 
-- Refactored Dashboard and DocumentList components for better state management
-- Added comments and cleaned up code for readability
-- Improved empty state messaging (e.g. "No documents match your search")
+### Added
 
-### 🔐 Private Note
-
-- These changes were made after sending v1.0 to HR
-- Useful for showcasing UI/UX enhancements and frontend state handling in resume or viva
-- Can reference this version in follow-ups as: `RegDoc v1.1 (UI + Search Enhancements)`
+- Role-based document collaboration (Contributor, Reviewer)
+- Secure document upload via Flask backend
+- Fullscreen PDF preview with pagination (React-PDF)
+- Reviewer assignment workflow
+- Status transitions: draft → in_review → accepted/rejected
