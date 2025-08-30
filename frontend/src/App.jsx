@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import "./index.css";
 import Login from "./components/Login";
-import Dashboard from "./components/Dashboard"; // <-- Import the Dashboard
+import Dashboard from "./components/Dashboard";
 
 function App() {
   const [token, setToken] = useState(null);
@@ -24,7 +25,9 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Welcome to RegDoc</h1>
+      <h1 className="text-3xl font-bold text-blue-600 p-4 bg-gray-100 rounded-lg">
+        Welcome to RegDoc
+      </h1>
       <button onClick={handleLogout} disabled={!token}>
         Logout
       </button>
