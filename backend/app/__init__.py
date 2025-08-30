@@ -5,6 +5,7 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
+from flask_cors import CORS
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +17,7 @@ db = None
 def create_app():
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__)
+    CORS(app)
     
     # --- Add JWT Secret Key Configuration ---
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
