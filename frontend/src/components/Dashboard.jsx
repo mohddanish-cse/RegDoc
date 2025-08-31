@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
+import ReviewModal from "./ReviewModal"; // Import the new modal
 
-function Dashboard() {
+function Dashboard({ currentUser }) {
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState(null);
 
-  // New state for reviewers
+  // State for the 'Submit for Review' modal
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
+
+  // State for the new 'Review' modal
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -25,10 +29,10 @@ function Dashboard() {
     fetchDocuments();
   }, []);
 
+  // --- Submit Modal Functions ---
   const openSubmitModal = async (doc) => {
     setSelectedDoc(doc);
-    setIsModalOpen(true);
-    // Fetch the list of potential reviewers when the modal opens
+    setIsSubmitModalOpen(true);
     try {
       const reviewerData = await apiCall("/user/reviewers");
       setReviewers(reviewerData);
@@ -38,87 +42,147 @@ function Dashboard() {
   };
 
   const closeSubmitModal = () => {
-    setIsModalOpen(false);
+    setIsSubmitModalOpen(false);
     setSelectedDoc(null);
-    setReviewers([]); // Clear lists on close
+    setReviewers([]);
     setSelectedReviewers([]);
   };
 
-  // Handle checking/unchecking a reviewer
   const handleReviewerSelection = (reviewerId) => {
-    setSelectedReviewers(
-      (prev) =>
-        prev.includes(reviewerId)
-          ? prev.filter((id) => id !== reviewerId) // Uncheck: remove ID
-          : [...prev, reviewerId] // Check: add ID
+    setSelectedReviewers((prev) =>
+      prev.includes(reviewerId)
+        ? prev.filter((id) => id !== reviewerId)
+        : [...prev, reviewerId]
     );
   };
 
   const handleConfirmSubmit = async () => {
     if (!selectedDoc) return;
     try {
-      // Send the selected reviewer IDs in the body
       await apiCall(`/documents/${selectedDoc.id}/submit`, "POST", {
         reviewers: selectedReviewers,
       });
       closeSubmitModal();
-      fetchDocuments(); // Refresh the dashboard
+      fetchDocuments();
     } catch (err) {
       alert(`Error: ${err.message}`);
     }
   };
 
+  // --- Review Modal Functions ---
+  const openReviewModal = (doc) => {
+    setSelectedDoc(doc);
+    setIsReviewModalOpen(true);
+  };
+
+  const closeReviewModal = () => {
+    setSelectedDoc(null);
+    setIsReviewModalOpen(false);
+  };
+
+  const handleReviewSuccess = () => {
+    closeReviewModal();
+    fetchDocuments(); // Refresh the dashboard data
+  };
+
+  if (error) {
+    return <p className="text-center text-red-500">{error}</p>;
+  }
+
+  if (!currentUser) {
+    return <p>Loading user...</p>;
+  }
+
   return (
     <>
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Filename
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Author
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {documents.map((doc) => (
-              <tr key={doc.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {doc.filename}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {doc.status}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {doc.author}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  {doc.status === "Draft" && (
-                    <button
-                      onClick={() => openSubmitModal(doc)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      Submit
-                    </button>
-                  )}
-                </td>
+        <div className="px-6 py-4">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Document Dashboard
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Filename
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Author
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {documents.length > 0 ? (
+                documents.map((doc) => {
+                  const isAuthor = doc.author_id === currentUser.id;
+                  const isReviewer = doc.reviewers?.includes(currentUser.id);
+
+                  return (
+                    <tr key={doc.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {doc.filename}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {doc.status}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {doc.author}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {doc.status === "Draft" && isAuthor && (
+                          <button
+                            onClick={() => openSubmitModal(doc)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Submit
+                          </button>
+                        )}
+                        {doc.status === "In Review" && isReviewer && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openReviewModal(doc)}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => openReviewModal(doc)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td
+                    colSpan="4"
+                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  >
+                    No documents found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* --- The Updated Modal Dialog --- */}
+      {/* --- Submit Modal --- */}
       <Dialog
-        open={isModalOpen}
+        open={isSubmitModalOpen}
         onClose={closeSubmitModal}
         className="relative z-50"
       >
@@ -132,8 +196,6 @@ function Dashboard() {
               Select reviewers for the document:{" "}
               <strong>{selectedDoc?.filename}</strong>
             </p>
-
-            {/* Reviewer Selection List */}
             <div className="mt-4 max-h-40 overflow-y-auto border rounded-md p-2">
               {reviewers.length > 0 ? (
                 reviewers.map((reviewer) => (
@@ -156,7 +218,6 @@ function Dashboard() {
                 <p className="text-sm text-gray-500">No reviewers found.</p>
               )}
             </div>
-
             <div className="mt-6 flex gap-4">
               <button
                 onClick={handleConfirmSubmit}
@@ -175,6 +236,14 @@ function Dashboard() {
           </Dialog.Panel>
         </div>
       </Dialog>
+
+      {/* --- Review Modal --- */}
+      <ReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={closeReviewModal}
+        document={selectedDoc}
+        onReviewSuccess={handleReviewSuccess}
+      />
     </>
   );
 }
