@@ -5,6 +5,7 @@ function DocumentTable({
   currentUser,
   onOpenSubmitModal,
   onOpenReviewModal,
+  onOpenApprovalModal,
 }) {
   return (
     <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -71,6 +72,16 @@ function DocumentTable({
                           </button>
                         </div>
                       )}
+
+                      {doc.status === "Approved" &&
+                        currentUser.role === "Admin" && (
+                          <button
+                            onClick={() => onOpenApprovalModal(doc)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Final Approve
+                          </button>
+                        )}
                     </td>
                   </tr>
                 );
