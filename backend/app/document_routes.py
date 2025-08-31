@@ -5,6 +5,10 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 import gridfs
 from bson.objectid import ObjectId
 
+from gridfs.errors import NoFile
+from flask import send_file
+from bson.errors import InvalidId
+
 # Create a Blueprint for document routes
 document_blueprint = Blueprint('documents', __name__)
 
@@ -94,63 +98,60 @@ def list_documents():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Add this import to the top of the file
-from gridfs.errors import NoFile
-from flask import send_file
-from bson.errors import InvalidId
 
-# ... (existing code for blueprint and upload/list routes) ...
-
-
-# --- NEW: GET SINGLE DOCUMENT DETAILS ---
+# --- GET SINGLE DOCUMENT DETAILS ---
 @document_blueprint.route("/<file_id>", methods=['GET'])
 @jwt_required()
 def get_document_details(file_id):
     init_gridfs()
     
     try:
-        # Use an aggregation pipeline to get details and author info
-        pipeline = [
-            {
-                '$match': {'_id': ObjectId(file_id)} # Filter by the specific file ID
-            },
-            {
-                '$lookup': {
-                    'from': 'users',
-                    'localField': 'author_id',
-                    'foreignField': '_id',
-                    'as': 'author_info'
-                }
-            },
-            {
-                '$unwind': '$author_info'
-            },
-            {
-                '$project': {
-                    '_id': 0,
-                    'id': {'$toString': '$_id'},
-                    'filename': '$filename',
-                    'contentType': '$contentType',
-                    'uploadDate': '$uploadDate',
-                    'status': '$status',
-                    'version': '$version',
-                    'author': '$author_info.username',
-                    'history': '$history' # Include history for the audit trail
-                }
-            }
-        ]
-        
-        document = list(db.fs.files.aggregate(pipeline))
+        file_id_obj = ObjectId(file_id)
 
-        if not document:
+        # Step 1: Find the file's metadata
+        file_metadata = db.fs.files.find_one({'_id': file_id_obj})
+
+        if not file_metadata:
             return jsonify({"error": "File not found"}), 404
-            
-        return jsonify(document[0]), 200
+        
+        # Step 2: Find the author's details separately
+        author_id = file_metadata.get('author_id')
+        author = db.users.find_one({'_id': author_id})
+        
+        # Step 3: Manually build the JSON-safe response
+        response_data = {
+            "id": str(file_metadata['_id']),
+            "filename": file_metadata.get('filename'),
+            "contentType": file_metadata.get('contentType'),
+            "uploadDate": file_metadata.get('uploadDate').isoformat(),
+            "status": file_metadata.get('status'),
+            "version": file_metadata.get('version'),
+            "author": author.get('username') if author else 'Unknown',
+            "author_id": str(author_id)
+        }
+
+        # Step 4: Safely process the history array
+        history_list = []
+        if 'history' in file_metadata:
+            for entry in file_metadata['history']:
+                history_user = db.users.find_one({'_id': entry['user_id']})
+                history_list.append({
+                    "action": entry.get('action'),
+                    "user": history_user.get('username') if history_user else 'Unknown',
+                    "user_id": str(entry.get('user_id')),
+                    "timestamp": entry.get('timestamp').isoformat(),
+                    "details": entry.get('details')
+                })
+        
+        response_data['history'] = history_list
+
+        return jsonify(response_data), 200
 
     except InvalidId:
         return jsonify({"error": "Invalid file ID format"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"An error occurred in get_document_details: {e}")
+        return jsonify({"error": "An internal server error occurred"}), 500
 
 
 # --- DOWNLOAD A DOCUMENT ---
@@ -174,3 +175,52 @@ def download_document(file_id):
         return jsonify({"error": "File not found"}), 404
     except InvalidId:
         return jsonify({"error": "Invalid file ID format"}), 400
+    
+@document_blueprint.route("/<file_id>/submit", methods=['POST'])
+@jwt_required()
+def submit_document(file_id):
+    init_gridfs()
+    
+    try:
+        file_id_obj = ObjectId(file_id)
+        user_id = get_jwt_identity()
+
+        # Find the document's metadata in fs.files
+        file_metadata = db.fs.files.find_one({'_id': file_id_obj})
+
+        if not file_metadata:
+            return jsonify({"error": "File not found"}), 404
+        
+        # --- Authorization Check ---
+        # Ensure the person submitting is the original author
+        if str(file_metadata['author_id']) != user_id:
+            return jsonify({"error": "Forbidden: You are not the author of this document"}), 403
+
+        # --- State Machine Check ---
+        # Ensure the document is in 'Draft' status before submitting
+        if file_metadata['status'] != 'Draft':
+            return jsonify({"error": f"Document is already in '{file_metadata['status']}' status and cannot be submitted."}), 400
+
+        # --- Create the Audit Log Entry ---
+        history_entry = {
+            "action": "Submitted for Review",
+            "user_id": ObjectId(user_id),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),
+            "details": "Document submitted by author."
+        }
+
+        # --- Update the Document ---
+        db.fs.files.update_one(
+            {'_id': file_id_obj},
+            {
+                '$set': {'status': 'In Review'},
+                '$push': {'history': history_entry}
+            }
+        )
+
+        return jsonify({"message": "Document submitted for review successfully"}), 200
+
+    except InvalidId:
+        return jsonify({"error": "Invalid file ID format"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
