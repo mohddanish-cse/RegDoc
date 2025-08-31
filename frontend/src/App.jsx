@@ -1,27 +1,38 @@
 import React, { useState, useEffect } from "react";
 import Login from "./components/Login";
-import Register from "./components/Register"; // Import Register
 import Dashboard from "./components/Dashboard";
+import { apiCall } from "./utils/api"; // Make sure apiCall is imported
 
 function App() {
-  const [token, setToken] = useState(null);
-  const [view, setView] = useState("login"); // 'login' or 'register'
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [user, setUser] = useState(null); // State for user profile
+  const [view, setView] = useState("login");
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    if (storedToken) {
-      setToken(storedToken);
-    }
-  }, []);
+    // If a token exists, fetch the user's profile
+    const fetchUser = async () => {
+      if (token) {
+        try {
+          const userData = await apiCall("/user/profile");
+          setUser(userData);
+        } catch (error) {
+          console.error("Failed to fetch user profile", error);
+          handleLogout(); // Log out if token is invalid
+        }
+      }
+    };
+    fetchUser();
+  }, [token]); // This effect runs whenever the token changes
 
   const handleLoginSuccess = (newToken) => {
-    setToken(newToken);
     localStorage.setItem("token", newToken);
+    setToken(newToken);
   };
 
   const handleLogout = () => {
-    setToken(null);
     localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
   };
 
   const AuthComponent = () => {
@@ -38,7 +49,7 @@ function App() {
 
   return (
     <div>
-      {token ? (
+      {token && user ? (
         // --- LOGGED-IN VIEW ---
         <div>
           <nav className="bg-white shadow-md">
@@ -47,17 +58,21 @@ function App() {
                 <span className="font-bold text-xl text-indigo-600">
                   RegDoc
                 </span>
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-                >
-                  Logout
-                </button>
+                <div>
+                  <span className="mr-4">Welcome, {user.username}!</span>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  >
+                    Logout
+                  </button>
+                </div>
               </div>
             </div>
           </nav>
+          {/* Pass the current user object down to the Dashboard */}
           <main className="p-8">
-            <Dashboard />
+            <Dashboard currentUser={user} />
           </main>
         </div>
       ) : (

@@ -55,48 +55,98 @@ def upload_document():
 
     return jsonify({"error": "An unexpected error occurred"}), 500
 
+# @document_blueprint.route("/", methods=['GET'])
+# @jwt_required()
+# def list_documents():
+#     init_gridfs()
+
+#     pipeline = [
+#         {'$lookup': {
+#             'from': 'users',
+#             'localField': 'author_id',
+#             'foreignField': '_id',
+#             'as': 'author_info'
+#         }},
+#         # This is the corrected line
+#         {'$unwind': { 'path': '$author_info', 'preserveNullAndEmptyArrays': True }},
+#         {'$sort': {'uploadDate': -1}}
+#     ]
+
+#     try:
+#         documents_cursor = db.fs.files.aggregate(pipeline)
+        
+#         documents_list = []
+#         for doc in documents_cursor:
+#             # Convert main IDs
+#             doc['id'] = str(doc.get('_id'))
+#             doc['author_id'] = str(doc.get('author_id'))
+#             # Safely get username
+#             doc['author'] = doc.get('author_info', {}).get('username', 'Unknown')
+            
+#             # Convert reviewer IDs
+#             if 'reviewers' in doc and doc.get('reviewers') is not None:
+#                 doc['reviewers'] = [str(rid) for rid in doc['reviewers']]
+#             else:
+#                 doc['reviewers'] = []
+            
+#             # Convert uploadDate
+#             if 'uploadDate' in doc and doc.get('uploadDate') is not None:
+#                 doc['uploadDate'] = doc['uploadDate'].isoformat()
+
+#             # Process the history array
+#             if 'history' in doc and doc.get('history') is not None:
+#                 for entry in doc['history']:
+#                     if 'user_id' in entry:
+#                         entry['user_id'] = str(entry['user_id'])
+#                     if 'timestamp' in entry:
+#                         entry['timestamp'] = entry['timestamp'].isoformat()
+            
+#             # Clean up unnecessary fields
+#             if '_id' in doc: del doc['_id']
+#             if 'author_info' in doc: del doc['author_info']
+            
+#             documents_list.append(doc)
+
+#         return jsonify(documents_list), 200
+
+#     except Exception as e:
+#         print(f"Error in list_documents: {e}")
+#         return jsonify({"error": "An internal server error occurred"}), 500    
+
 @document_blueprint.route("/", methods=['GET'])
 @jwt_required()
 def list_documents():
     init_gridfs()
 
-    # This pipeline joins fs.files with the users collection to get author details
-    pipeline = [
-        {
-            '$lookup': {
-                'from': 'users',
-                'localField': 'author_id',
-                'foreignField': '_id',
-                'as': 'author_info'
-            }
-        },
-        {
-            '$unwind': '$author_info'
-        },
-        {
-            '$project': {
-                '_id': 0, # Exclude the original _id
-                'id': {'$toString': '$_id'}, # Convert _id to string as 'id'
-                'filename': '$filename',
-                'contentType': '$contentType',
-                'uploadDate': '$uploadDate',
-                'status': '$status',
-                'version': '$version',
-                'author': '$author_info.username'
-            }
-        },
-        {
-            '$sort': {
-                'uploadDate': -1 # Sort by most recent first
-            }
-        }
-    ]
-
     try:
-        documents = list(db.fs.files.aggregate(pipeline))
-        return jsonify(documents), 200
+        documents_list = []
+        # 1. Fetch all file metadata, sorted by date
+        for doc in db.fs.files.find({}).sort('uploadDate', -1):
+            
+            # 2. For each document, safely fetch the author's details
+            author = None
+            if doc.get('author_id'):
+                author = db.users.find_one({'_id': doc.get('author_id')})
+
+            # 3. Manually and safely build the response object for each document
+            processed_doc = {
+                'id': str(doc.get('_id')),
+                'filename': doc.get('filename'),
+                'contentType': doc.get('contentType'),
+                'uploadDate': doc.get('uploadDate').isoformat() if doc.get('uploadDate') else None,
+                'status': doc.get('status'),
+                'version': doc.get('version'),
+                'author_id': str(doc.get('author_id')),
+                'author': author.get('username') if author else 'Unknown',
+                'reviewers': [str(rid) for rid in doc.get('reviewers', [])]
+            }
+            documents_list.append(processed_doc)
+
+        return jsonify(documents_list), 200
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in list_documents: {e}")
+        return jsonify({"error": "An internal server error occurred"}), 500
 
 
 # --- GET SINGLE DOCUMENT DETAILS ---
