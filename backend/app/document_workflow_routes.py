@@ -1,27 +1,20 @@
-import datetime
 from flask import Blueprint, request, jsonify
 from . import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import gridfs
+import datetime
 from bson.objectid import ObjectId
-
-from gridfs.errors import NoFile
-from flask import send_file
 from bson.errors import InvalidId
 
-# Create a Blueprint for document routes
-document_blueprint = Blueprint('documents', __name__)
+document_workflow_blueprint = Blueprint('document_workflow', __name__)
 
-# We will initialize GridFS when it's first needed
 fs = None
-
-# Helper function to initialize GridFS
 def init_gridfs():
     global fs
     if fs is None:
         fs = gridfs.GridFS(db)
 
-@document_blueprint.route("/upload", methods=['POST'])
+@document_workflow_blueprint.route("/upload", methods=['POST'])
 @jwt_required()
 def upload_document():
     init_gridfs() # Ensure GridFS is initialized
@@ -56,7 +49,7 @@ def upload_document():
     return jsonify({"error": "An unexpected error occurred"}), 500
 
 
-@document_blueprint.route("/<file_id>/submit", methods=['POST'])
+@document_workflow_blueprint.route("/<file_id>/submit", methods=['POST'])
 @jwt_required()
 def submit_document(file_id):
     init_gridfs()
@@ -111,7 +104,7 @@ def submit_document(file_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@document_blueprint.route("/<file_id>/review", methods=['POST'])
+@document_workflow_blueprint.route("/<file_id>/review", methods=['POST'])
 @jwt_required()
 def review_document(file_id):
     init_gridfs()
