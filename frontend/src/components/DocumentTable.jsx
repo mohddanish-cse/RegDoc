@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 function DocumentTable({
   documents,
@@ -39,7 +40,12 @@ function DocumentTable({
                 return (
                   <tr key={doc.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {doc.filename}
+                      <Link
+                        to={`documents/${doc.id}`}
+                        className="text-indigo-600 hover:text-indigo-800 hover:underline"
+                      >
+                        {doc.filename}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {doc.status}
