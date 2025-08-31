@@ -182,38 +182,44 @@ def submit_document(file_id):
     init_gridfs()
     
     try:
+        data = request.get_json()
+        reviewer_ids_str = data.get('reviewers', [])
+        
+        # --- Validation ---
+        if not isinstance(reviewer_ids_str, list) or not reviewer_ids_str:
+            return jsonify({"error": "A list of reviewer IDs must be provided."}), 400
+
         file_id_obj = ObjectId(file_id)
         user_id = get_jwt_identity()
 
-        # Find the document's metadata in fs.files
         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
 
         if not file_metadata:
             return jsonify({"error": "File not found"}), 404
         
-        # --- Authorization Check ---
-        # Ensure the person submitting is the original author
         if str(file_metadata['author_id']) != user_id:
-            return jsonify({"error": "Forbidden: You are not the author of this document"}), 403
+            return jsonify({"error": "Forbidden: You are not the author"}), 403
 
-        # --- State Machine Check ---
-        # Ensure the document is in 'Draft' status before submitting
         if file_metadata['status'] != 'Draft':
-            return jsonify({"error": f"Document is already in '{file_metadata['status']}' status and cannot be submitted."}), 400
+            return jsonify({"error": f"Document is already in '{file_metadata['status']}' status"}), 400
 
-        # --- Create the Audit Log Entry ---
+        # Convert reviewer ID strings to ObjectId
+        reviewer_ids_obj = [ObjectId(rid) for rid in reviewer_ids_str]
+
         history_entry = {
             "action": "Submitted for Review",
             "user_id": ObjectId(user_id),
             "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "details": "Document submitted by author."
+            "details": f"Submitted to {len(reviewer_ids_obj)} reviewer(s)."
         }
 
-        # --- Update the Document ---
         db.fs.files.update_one(
             {'_id': file_id_obj},
             {
-                '$set': {'status': 'In Review'},
+                '$set': {
+                    'status': 'In Review',
+                    'reviewers': reviewer_ids_obj # <-- Save the list of reviewers
+                },
                 '$push': {'history': history_entry}
             }
         )
@@ -221,7 +227,7 @@ def submit_document(file_id):
         return jsonify({"message": "Document submitted for review successfully"}), 200
 
     except InvalidId:
-        return jsonify({"error": "Invalid file ID format"}), 400
+        return jsonify({"error": "Invalid ID format"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
