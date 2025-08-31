@@ -4,10 +4,8 @@ function Dashboard() {
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState("");
 
-  // useEffect will run once when the component is first rendered
   useEffect(() => {
     const fetchDocuments = async () => {
-      // Get the token from localStorage
       const token = localStorage.getItem("token");
       if (!token) {
         setError("No token found. Please log in.");
@@ -18,54 +16,89 @@ function Dashboard() {
         const response = await fetch("http://127.0.0.1:5000/api/documents/", {
           method: "GET",
           headers: {
-            // Include the token in the Authorization header
             Authorization: `Bearer ${token}`,
           },
         });
 
         if (!response.ok) {
-          throw new Error("Failed to fetch documents.");
+          const data = await response.json();
+          throw new Error(data.error || "Failed to fetch documents.");
         }
 
         const data = await response.json();
-        setDocuments(data); // Store the fetched documents in state
+        setDocuments(data);
       } catch (err) {
         setError(err.message);
       }
     };
 
     fetchDocuments();
-  }, []); // The empty dependency array means this runs only once
+  }, []);
 
   if (error) {
-    return <p style={{ color: "red" }}>{error}</p>;
+    return <p className="text-center text-red-500">{error}</p>;
   }
 
   return (
-    <div>
-      <h2>Document Dashboard</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Filename</th>
-            <th>Status</th>
-            <th>Version</th>
-            <th>Author</th>
-            <th>Upload Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {documents.map((doc) => (
-            <tr key={doc.id}>
-              <td>{doc.filename}</td>
-              <td>{doc.status}</td>
-              <td>{doc.version}</td>
-              <td>{doc.author}</td>
-              <td>{new Date(doc.uploadDate).toLocaleString()}</td>
+    <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="px-6 py-4">
+        <h2 className="text-2xl font-bold text-gray-800">Document Dashboard</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Filename
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Version
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Author
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Upload Date
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {documents.length > 0 ? (
+              documents.map((doc) => (
+                <tr key={doc.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {doc.filename}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {doc.status}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {doc.version}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {doc.author}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(doc.uploadDate).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan="5"
+                  className="px-6 py-4 text-center text-sm text-gray-500"
+                >
+                  No documents found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
