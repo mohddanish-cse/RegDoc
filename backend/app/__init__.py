@@ -43,7 +43,10 @@ def create_app():
     from .user import user_blueprint
     app.register_blueprint(user_blueprint, url_prefix='/api/user')
         
-    from .document_routes import document_blueprint
-    app.register_blueprint(document_blueprint, url_prefix='/api/documents')
+    from .document_read_routes import document_read_blueprint
+    app.register_blueprint(document_read_blueprint, url_prefix='/api/documents')
+
+    from .document_workflow_routes import document_workflow_blueprint
+    app.register_blueprint(document_workflow_blueprint, url_prefix='/api/documents')
 
     return app
