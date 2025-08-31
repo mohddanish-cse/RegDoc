@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiCall } from "../utils/api";
 
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState("");
@@ -10,18 +11,7 @@ function Login({ onLoginSuccess }) {
     setError("");
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed");
-      }
+      const data = await apiCall("/auth/login", "POST", { email, password });
       onLoginSuccess(data.access_token);
     } catch (err) {
       setError(err.message);
@@ -29,18 +19,17 @@ function Login({ onLoginSuccess }) {
   };
 
   return (
+    // ... JSX is unchanged ...
     <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-center text-gray-900">
         Sign in to your account
       </h2>
-
       <form className="space-y-6" onSubmit={handleSubmit}>
         {error && (
           <p className="p-2 text-sm text-center text-red-700 bg-red-100 rounded-lg">
             {error}
           </p>
         )}
-
         <div>
           <label
             htmlFor="email"
@@ -57,7 +46,6 @@ function Login({ onLoginSuccess }) {
             className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
-
         <div>
           <label
             htmlFor="password"
@@ -74,7 +62,6 @@ function Login({ onLoginSuccess }) {
             className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
-
         <div>
           <button
             type="submit"

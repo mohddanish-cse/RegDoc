@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Dialog } from "@headlessui/react"; // Import the Dialog component
+import { Dialog } from "@headlessui/react";
+import { apiCall } from "../utils/api";
 
 function Dashboard() {
   const [documents, setDocuments] = useState([]);
@@ -10,22 +11,8 @@ function Dashboard() {
   const [selectedDoc, setSelectedDoc] = useState(null);
 
   const fetchDocuments = async () => {
-    // ... (fetchDocuments function is unchanged) ...
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("No token found. Please log in.");
-      return;
-    }
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/documents/", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to fetch documents.");
-      }
-      const data = await response.json();
+      const data = await apiCall("/documents/");
       setDocuments(data);
     } catch (err) {
       setError(err.message);
@@ -48,23 +35,11 @@ function Dashboard() {
 
   const handleConfirmSubmit = async () => {
     if (!selectedDoc) return;
-    const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/documents/${selectedDoc.id}/submit`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await apiCall(`/documents/${selectedDoc.id}/submit`, "POST");
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to submit document.");
-      }
-
-      // Close the modal and refresh the document list to show the status change
+      // Close the modal and refresh the document list
       closeSubmitModal();
       fetchDocuments();
     } catch (err) {
