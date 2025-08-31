@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, app
 from dotenv import load_dotenv
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -21,6 +21,10 @@ def create_app():
     
     # --- Add JWT Secret Key Configuration ---
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
+
+    # Allow JWT in headers (default) AND as a URL query parameter
+    app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
+    
     jwt = JWTManager(app) # Initialize JWTManager
     
     # --- Database Connection ---

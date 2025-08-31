@@ -131,3 +131,21 @@ def download_document(file_id):
         return jsonify({"error": "File not found"}), 404
     except InvalidId:
         return jsonify({"error": "Invalid file ID format"}), 400
+
+@document_read_blueprint.route("/<file_id>/preview", methods=['GET'])
+@jwt_required()
+def preview_document(file_id):
+    init_gridfs()
+    try:
+        grid_out = fs.get(ObjectId(file_id))
+        
+        # The main difference is we don't set 'as_attachment=True'
+        return send_file(
+            grid_out,
+            mimetype=grid_out.contentType,
+            download_name=grid_out.filename
+        )
+    except NoFile:
+        return jsonify({"error": "File not found"}), 404
+    except InvalidId:
+        return jsonify({"error": "Invalid file ID format"}), 400

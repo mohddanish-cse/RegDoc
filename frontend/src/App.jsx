@@ -1,80 +1,44 @@
 import React, { useState, useEffect } from "react";
-import Login from "./components/Login";
-import Register from "./components/Register";
-import Dashboard from "./components/Dashboard";
+import { Outlet, Navigate } from "react-router-dom";
 import { apiCall } from "./utils/api";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("login");
-  const [isLoading, setIsLoading] = useState(true); // <-- New loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const storedToken = localStorage.getItem("token");
-      if (storedToken) {
-        setToken(storedToken);
+      const token = localStorage.getItem("token");
+      if (token) {
         try {
           const userData = await apiCall("/user/profile");
           setUser(userData);
         } catch (error) {
-          console.error("Failed to fetch user profile, logging out.", error);
-          handleLogout();
+          console.error("Token is invalid, logging out.", error);
+          localStorage.removeItem("token");
         }
       }
-      setIsLoading(false); // <-- Stop loading once checked
+      setIsLoading(false);
     };
     fetchUser();
   }, []);
 
-  const handleLoginSuccess = (newToken) => {
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    // After login, we need to fetch the user
-    const fetchUserOnLogin = async () => {
-      try {
-        const userData = await apiCall("/user/profile");
-        setUser(userData);
-      } catch (error) {
-        console.error("Failed to fetch user profile after login", error);
-      }
-    };
-    fetchUserOnLogin();
-  };
-
   const handleLogout = () => {
     localStorage.removeItem("token");
-    setToken(null);
     setUser(null);
+    window.location.href = "/login";
   };
 
-  // --- Render Logic ---
   if (isLoading) {
-    return <div>Loading Application...</div>; // Show a global loading screen
+    return <div>Loading Application...</div>;
   }
 
-  if (!token || !user) {
-    // Show login/register page if there's no token OR no user profile
-    const AuthComponent = () => {
-      if (view === "login") {
-        return (
-          <Login
-            onLoginSuccess={handleLoginSuccess}
-            onShowRegister={() => setView("register")}
-          />
-        );
-      }
-      return <Register onShowLogin={() => setView("login")} />;
-    };
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <AuthComponent />
-      </div>
-    );
+  // If loading is finished and there's no user, redirect to login
+  if (!user) {
+    return <Navigate to="/login" />;
   }
 
-  // If we have a token AND a user, show the main app
+  // If we have a user, show the main app layout with the correct page
   return (
     <div>
       <nav className="bg-white shadow-md">
@@ -94,7 +58,8 @@ function App() {
         </div>
       </nav>
       <main className="p-8">
-        <Dashboard currentUser={user} />
+        {/* Pass user down to all child routes */}
+        <Outlet context={{ user }} />
       </main>
     </div>
   );
