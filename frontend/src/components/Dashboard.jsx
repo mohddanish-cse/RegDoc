@@ -4,11 +4,14 @@ import { apiCall } from "../utils/api";
 import ReviewModal from "./ReviewModal";
 import DocumentTable from "./DocumentTable";
 import ApprovalModal from "./ApprovalModal";
+import { useOutletContext } from "react-router-dom";
 
-function Dashboard({ currentUser }) {
+function Dashboard() {
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState("");
   const [selectedDoc, setSelectedDoc] = useState(null);
+
+  const { user: currentUser } = useOutletContext();
 
   // State for Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -22,7 +25,6 @@ function Dashboard({ currentUser }) {
   const fetchDocuments = async () => {
     try {
       const data = await apiCall("/documents/");
-      console.log("Fetched data from API:", data);
 
       setDocuments(data);
     } catch (err) {
@@ -89,12 +91,9 @@ function Dashboard({ currentUser }) {
     }
   };
 
-  console.log("Current User:", currentUser);
   // --- Render Logic ---
   if (error) return <p className="text-center text-red-500">{error}</p>;
   if (!currentUser) return <p>Loading user...</p>;
-
-  console.log("Rendering dashboard with documents:", documents);
 
   return (
     <>
