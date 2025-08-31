@@ -34,3 +34,25 @@ def get_all_users():
     for user in all_users:
         user['_id'] = str(user['_id'])
     return jsonify(all_users), 200
+
+@user_blueprint.route("/reviewers", methods=['GET'])
+@jwt_required()
+def get_potential_reviewers():
+    users_collection = db.users
+    try:
+        # Find all users where the role is either 'Reviewer' or 'Admin'
+        # The $in operator matches any of the values specified in an array.
+        reviewers = list(users_collection.find(
+            {'role': {'$in': ['Reviewer', 'Admin']}},
+            {'_id': 1, 'username': 1} # Projection: only return ID and username
+        ))
+
+        # Convert ObjectId to string for JSON serialization
+        for reviewer in reviewers:
+            reviewer['id'] = str(reviewer['_id'])
+            del reviewer['_id']
+
+        return jsonify(reviewers), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

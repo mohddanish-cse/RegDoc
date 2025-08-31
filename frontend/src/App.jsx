@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import Login from "./components/Login";
+import Register from "./components/Register"; // Import Register
 import Dashboard from "./components/Dashboard";
 
 function App() {
   const [token, setToken] = useState(null);
+  const [view, setView] = useState("login"); // 'login' or 'register'
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
@@ -20,6 +22,18 @@ function App() {
   const handleLogout = () => {
     setToken(null);
     localStorage.removeItem("token");
+  };
+
+  const AuthComponent = () => {
+    if (view === "login") {
+      return (
+        <Login
+          onLoginSuccess={handleLoginSuccess}
+          onShowRegister={() => setView("register")}
+        />
+      );
+    }
+    return <Register onShowLogin={() => setView("login")} />;
   };
 
   return (
@@ -49,7 +63,7 @@ function App() {
       ) : (
         // --- LOGGED-OUT VIEW ---
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
-          <Login onLoginSuccess={handleLoginSuccess} />
+          <AuthComponent />
         </div>
       )}
     </div>
