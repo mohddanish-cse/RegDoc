@@ -111,9 +111,9 @@ def review_document(file_id):
     
     data = request.get_json()
     decision = data.get('decision')
-    comments = data.get('comments', '') # Comments are optional
+    comments = data.get('comments', '')
 
-    if not decision or decision not in ['Approved', 'Rejected']:
+    if not decision or decision not in ['Accepted', 'Rejected']:
         return jsonify({"error": "Invalid decision provided. Must be 'Approved' or 'Rejected'."}), 400
 
     try:
@@ -125,17 +125,21 @@ def review_document(file_id):
         if not file_metadata:
             return jsonify({"error": "File not found"}), 404
         
-        # --- Authorization Check ---
-        # 1. Check if the user is in the list of reviewers for this document
-        # Note: We will need to add a 'reviewers' field when submitting a doc.
-        # For now, let's assume the author can also review for testing purposes.
-        # A proper check would be: if user_id_obj not in file_metadata.get('reviewers', []):
-        if str(file_metadata['author_id']) != str(user_id_obj):
-             return jsonify({"error": "Forbidden: You are not assigned to review this document"}), 403
+        assigned_reviewers = file_metadata.get('reviewers', [])
+        if user_id_obj not in assigned_reviewers:
+             return jsonify({"error": "Forbidden: You are not an assigned reviewer for this document."}), 403
 
-        # --- State Machine Check ---
         if file_metadata['status'] != 'In Review':
             return jsonify({"error": f"Document is in '{file_metadata['status']}' status and cannot be reviewed."}), 400
+
+        # --- Check if this user has already reviewed ---
+        history = file_metadata.get('history', [])
+        already_reviewed = any(
+            entry['action'] in ['Review Accepted', 'Review Rejected'] and entry['user_id'] == user_id_obj 
+            for entry in history
+        )
+        if already_reviewed:
+            return jsonify({"error": "You have already reviewed this document."}), 400
 
         # --- Create the Audit Log Entry ---
         history_entry = {
@@ -144,27 +148,40 @@ def review_document(file_id):
             "timestamp": datetime.datetime.now(datetime.timezone.utc),
             "details": comments
         }
+        
+        # --- NEW: Dynamic Status and Version Logic ---
+        new_status = file_metadata['status']
+        new_version = file_metadata.get('version', '0.1')
+        
+        # Get a list of users who have already reviewed
+        reviewing_users = {entry['user_id'] for entry in history if entry['action'].startswith('Review')}
+        
+        # Add the current user to the set of reviewers who have acted
+        reviewing_users.add(user_id_obj)
 
-        # --- Update the Document ---
-        # For a real system with multiple reviewers, the logic would be more complex.
-        # For our project, we'll assume one reviewer's decision is final.
-        new_status = 'Approved' if decision == 'Approved' else 'Rejected'
+        if decision == 'Rejected':
+            new_status = 'Rejected'
+            # Version might increment to 0.1.1 or similar in a more complex system, but for now, it stays.
+        elif len(reviewing_users) == len(assigned_reviewers):
+            # This is the last reviewer, and they approved
+            new_status = 'Review Complete'
+            new_version = '0.2'
         
         db.fs.files.update_one(
             {'_id': file_id_obj},
             {
-                '$set': {'status': new_status},
+                '$set': {'status': new_status, 'version': new_version},
                 '$push': {'history': history_entry}
             }
         )
 
-        return jsonify({"message": f"Document has been {decision.lower()}"}), 200
+        return jsonify({"message": f"Document review submitted as '{decision}'"}), 200
 
     except InvalidId:
         return jsonify({"error": "Invalid file ID format"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 @document_workflow_blueprint.route("/<file_id>/approve", methods=['POST'])
 @jwt_required()
 def final_approve_document(file_id):
@@ -174,8 +191,8 @@ def final_approve_document(file_id):
     decision = data.get('decision')
     comments = data.get('comments', '')
 
-    if not decision or decision not in ['Finally Approved', 'Finally Rejected']:
-        return jsonify({"error": "Invalid decision. Must be 'Finally Approved' or 'Finally Rejected'."}), 400
+    if not decision or decision not in ['Approved', 'Rejected']:
+        return jsonify({"error": "Invalid decision. Must be 'Approved' or 'Rejected'."}), 400
 
     try:
         file_id_obj = ObjectId(file_id)
@@ -194,7 +211,7 @@ def final_approve_document(file_id):
              return jsonify({"error": "Forbidden: You are not an approver"}), 403
 
         # --- State Machine Check ---
-        if file_metadata['status'] != 'Approved':
+        if file_metadata['status'] != 'Review Complete':
             return jsonify({"error": f"Document is in '{file_metadata['status']}' status and is not ready for final approval."}), 400
 
         # --- Create the Audit Log Entry ---
@@ -205,10 +222,19 @@ def final_approve_document(file_id):
             "details": comments
         }
         
+        # db.fs.files.update_one(
+        #     {'_id': file_id_obj},
+        #     {
+        #         '$set': {'status': decision},
+        #         '$push': {'history': history_entry}
+        #     }
+        # )
+
+        new_version = '1.0' if decision == 'Approved' else file_metadata.get('version')
         db.fs.files.update_one(
             {'_id': file_id_obj},
             {
-                '$set': {'status': decision},
+                '$set': {'status': decision, 'version': new_version},
                 '$push': {'history': history_entry}
             }
         )

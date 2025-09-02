@@ -4,6 +4,7 @@ import { apiCall } from "../utils/api";
 import ReviewModal from "./ReviewModal";
 import DocumentTable from "./DocumentTable";
 import ApprovalModal from "./ApprovalModal";
+import UploadModal from "./UploadModal"; // <-- Import UploadModal
 import { useOutletContext } from "react-router-dom";
 
 function Dashboard() {
@@ -17,6 +18,7 @@ function Dashboard() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // <-- New state for upload modal
 
   // State for Submit Modal Data
   const [reviewers, setReviewers] = useState([]);
@@ -25,7 +27,6 @@ function Dashboard() {
   const fetchDocuments = async () => {
     try {
       const data = await apiCall("/documents/");
-
       setDocuments(data);
     } catch (err) {
       setError(err.message);
@@ -62,6 +63,7 @@ function Dashboard() {
     setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
+    setIsUploadModalOpen(false); // <-- Close upload modal
     setSelectedDoc(null);
   };
 
@@ -69,6 +71,12 @@ function Dashboard() {
   const handleActionSuccess = () => {
     closeModal();
     fetchDocuments(); // Refresh data after any successful action
+  };
+
+  const handleUploadSuccess = () => {
+    // <-- New handler for successful upload
+    closeModal();
+    fetchDocuments();
   };
 
   const handleReviewerSelection = (reviewerId) => {
@@ -97,13 +105,27 @@ function Dashboard() {
 
   return (
     <>
-      <DocumentTable
-        documents={documents}
-        currentUser={currentUser}
-        onOpenSubmitModal={openSubmitModal}
-        onOpenReviewModal={openReviewModal}
-        onOpenApprovalModal={openApprovalModal}
-      />
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="px-6 py-4 flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Document Dashboard
+          </h2>
+          {/* --- The New Upload Button --- */}
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Upload Document
+          </button>
+        </div>
+        <DocumentTable
+          documents={documents}
+          currentUser={currentUser}
+          onOpenSubmitModal={openSubmitModal}
+          onOpenReviewModal={openReviewModal}
+          onOpenApprovalModal={openApprovalModal}
+        />
+      </div>
 
       {/* Submit Modal */}
       <Dialog
@@ -157,6 +179,7 @@ function Dashboard() {
         </div>
       </Dialog>
 
+      {/* Review Modal (Unchanged) */}
       <ReviewModal
         isOpen={isReviewModalOpen}
         onClose={closeModal}
@@ -164,11 +187,19 @@ function Dashboard() {
         onReviewSuccess={handleActionSuccess}
       />
 
+      {/* Approval Modal (Unchanged) */}
       <ApprovalModal
         isOpen={isApprovalModalOpen}
         onClose={closeModal}
         document={selectedDoc}
         onApprovalSuccess={handleActionSuccess}
+      />
+
+      {/* --- The New Upload Modal --- */}
+      <UploadModal
+        isOpen={isUploadModalOpen}
+        onClose={closeModal}
+        onUploadSuccess={handleUploadSuccess}
       />
     </>
   );

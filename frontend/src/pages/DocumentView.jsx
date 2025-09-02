@@ -57,6 +57,12 @@ function DocumentView() {
               <p className="text-sm font-medium text-gray-500">Author</p>
               <p className="text-gray-800">{document.author}</p>
             </div>
+
+            <div>
+              <p className="text-sm font-medium text-gray-500">Version</p>
+              <p className="text-gray-800">{document.version}</p>
+            </div>
+
             <div>
               <p className="text-sm font-medium text-gray-500">Upload Date</p>
               <p className="text-gray-800">
