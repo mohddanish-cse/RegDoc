@@ -10,9 +10,6 @@ function DocumentTable({
 }) {
   return (
     <div className="bg-white shadow-md rounded-lg overflow-hidden">
-      <div className="px-6 py-4">
-        <h2 className="text-2xl font-bold text-gray-800">Document Dashboard</h2>
-      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -41,7 +38,7 @@ function DocumentTable({
                   <tr key={doc.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <Link
-                        to={`documents/${doc.id}`}
+                        to={`/documents/${doc.id}`}
                         className="text-indigo-600 hover:text-indigo-800 hover:underline"
                       >
                         {doc.filename}
@@ -59,7 +56,7 @@ function DocumentTable({
                           onClick={() => onOpenSubmitModal(doc)}
                           className="text-indigo-600 hover:text-indigo-900"
                         >
-                          Submit
+                          Submit for Review
                         </button>
                       )}
                       {doc.status === "In Review" && isReviewer && (
@@ -78,8 +75,8 @@ function DocumentTable({
                           </button>
                         </div>
                       )}
-
-                      {doc.status === "Approved" &&
+                      {/* --- THIS IS THE MISSING PART --- */}
+                      {doc.status === "Review Complete" &&
                         currentUser.role === "Admin" && (
                           <button
                             onClick={() => onOpenApprovalModal(doc)}

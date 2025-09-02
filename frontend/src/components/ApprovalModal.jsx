@@ -67,16 +67,16 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
 
           <div className="mt-6 flex gap-4">
             <button
-              onClick={() => handleApproval("Finally Approved")}
+              onClick={() => handleApproval("Approved")}
               className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              Finally Approve
+              Approve
             </button>
             <button
-              onClick={() => handleApproval("Finally Rejected")}
+              onClick={() => handleApproval("Rejected")}
               className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
             >
-              Finally Reject
+              Reject
             </button>
             <button
               onClick={onClose}
