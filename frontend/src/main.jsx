@@ -5,6 +5,8 @@ import App from "./App.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import DocumentView from "./pages/DocumentView.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import UserManagementPage from "./pages/UserManagementPage.jsx";
+import AdminRoute from "./auth/AdminRoute.jsx";
 import "./index.css";
 
 const router = createBrowserRouter([
@@ -14,6 +16,14 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "documents/:documentId", element: <DocumentView /> },
+      {
+        path: "admin/users",
+        element: (
+          <AdminRoute>
+            <UserManagementPage />
+          </AdminRoute>
+        ),
+      },
     ],
   },
   {
