@@ -46,6 +46,17 @@ function DocumentView() {
         {/* Left Column: Metadata */}
         <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
           <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
+
+          {document.signature && (
+            <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
+              <p className="font-bold text-green-800">Digitally Signed</p>
+              <p className="text-sm text-green-700">
+                by {document.signed_by_username} on{" "}
+                {new Date(document.signed_at).toLocaleString()}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
             <div>
               <p className="text-sm font-medium text-gray-500">Status</p>

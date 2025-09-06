@@ -2,26 +2,36 @@ import datetime
 from flask import Blueprint, request, jsonify
 from . import db, bcrypt
 from flask_jwt_extended import create_access_token
+from .crypto_utils import generate_keys
 
 auth_blueprint = Blueprint('auth', __name__)
+
 
 @auth_blueprint.route("/register", methods=['POST'])
 def register_user():
     users_collection = db.users
     data = request.get_json()
+
     if not data or not data.get('email') or not data.get('password') or not data.get('username'):
         return jsonify({"error": "Missing required fields"}), 400
+        
     email = data.get('email')
     if users_collection.find_one({'email': email}):
         return jsonify({"error": "User with this email already exists"}), 409
+    
     hashed_password = bcrypt.generate_password_hash(data.get('password')).decode('utf-8')
+
+    private_key, public_key = generate_keys()
     new_user = {
         'email': email,
         'username': data.get('username'),
         'password': hashed_password,
         'role': 'Contributor',
-        'created_at': datetime.datetime.now(datetime.timezone.utc)
+        'created_at': datetime.datetime.now(datetime.timezone.utc),
+        'private_key': private_key,
+        'public_key': public_key
     }
+    
     result = users_collection.insert_one(new_user)
     return jsonify({
         "message": "User registered successfully!",
@@ -44,3 +54,5 @@ def login_user():
         return jsonify(access_token=access_token), 200
     else:
         return jsonify({"error": "Invalid credentials"}), 401
+    
+
