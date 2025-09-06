@@ -84,6 +84,15 @@ def get_document_details(file_id):
             "author_id": str(author_id)
         }
 
+        # --- NEW: Add signer's username if document is signed ---
+        if file_metadata.get('signature'):
+            response_data['signature'] = file_metadata.get('signature')
+            response_data['signed_at'] = file_metadata.get('signed_at').isoformat()
+            
+            signer_id = file_metadata.get('signed_by')
+            signer = db.users.find_one({'_id': signer_id})
+            response_data['signed_by_username'] = signer.get('username') if signer else 'Unknown'
+
         # Step 4: Safely process the history array
         history_list = []
         if 'history' in file_metadata:

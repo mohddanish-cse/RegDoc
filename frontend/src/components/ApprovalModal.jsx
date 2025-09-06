@@ -13,13 +13,12 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
     }
   }, [isOpen]);
 
-  const handleApproval = async (decision) => {
+  // This function now calls the new /sign endpoint
+  const handleSignAndPublish = async () => {
     setError("");
     try {
-      await apiCall(`/documents/${document.id}/approve`, "POST", {
-        decision, // 'Finally Approved' or 'Finally Rejected'
-        comments,
-      });
+      // We only need comments, the decision is implicit in the endpoint
+      await apiCall(`/documents/${document.id}/sign`, "POST", { comments });
       onApprovalSuccess();
     } catch (err) {
       setError(err.message);
@@ -36,11 +35,11 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded bg-white p-6">
           <Dialog.Title className="text-lg font-bold">
-            Final Approval
+            Sign and Publish Document
           </Dialog.Title>
           <p className="mt-2 text-sm text-gray-600">
-            You are giving final approval for:{" "}
-            <strong>{document?.filename}</strong>
+            You are about to digitally sign and publish:{" "}
+            <strong>{document?.filename}</strong>. This action is final.
           </p>
 
           {error && (
@@ -54,7 +53,7 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
               htmlFor="approval-comments"
               className="block text-sm font-medium text-gray-700"
             >
-              Comments (Optional)
+              Final Comments (Optional)
             </label>
             <textarea
               id="approval-comments"
@@ -67,16 +66,10 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
 
           <div className="mt-6 flex gap-4">
             <button
-              onClick={() => handleApproval("Approved")}
+              onClick={handleSignAndPublish}
               className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
             >
-              Approve
-            </button>
-            <button
-              onClick={() => handleApproval("Rejected")}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-            >
-              Reject
+              Sign and Publish
             </button>
             <button
               onClick={onClose}

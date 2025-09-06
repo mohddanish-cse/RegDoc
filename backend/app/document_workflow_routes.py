@@ -5,6 +5,7 @@ import gridfs
 import datetime
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
+from .crypto_utils import sign_data
 
 document_workflow_blueprint = Blueprint('document_workflow', __name__)
 
@@ -182,66 +183,135 @@ def review_document(file_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@document_workflow_blueprint.route("/<file_id>/approve", methods=['POST'])
+# @document_workflow_blueprint.route("/<file_id>/approve", methods=['POST'])
+# @jwt_required()
+# def final_approve_document(file_id):
+#     init_gridfs()
+    
+#     data = request.get_json()
+#     decision = data.get('decision')
+#     comments = data.get('comments', '')
+
+#     if not decision or decision not in ['Approved', 'Rejected']:
+#         return jsonify({"error": "Invalid decision. Must be 'Approved' or 'Rejected'."}), 400
+
+#     try:
+#         file_id_obj = ObjectId(file_id)
+#         user_id_obj = ObjectId(get_jwt_identity())
+
+#         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
+
+#         if not file_metadata:
+#             return jsonify({"error": "File not found"}), 404
+        
+#         # --- Authorization Check ---
+#         # For now, we'll assume an 'Admin' is the approver.
+#         # A full implementation would have a separate 'approvers' field.
+#         user_profile = db.users.find_one({'_id': user_id_obj})
+#         if not user_profile or user_profile.get('role') != 'Admin':
+#              return jsonify({"error": "Forbidden: You are not an approver"}), 403
+
+#         # --- State Machine Check ---
+#         if file_metadata['status'] != 'Review Complete':
+#             return jsonify({"error": f"Document is in '{file_metadata['status']}' status and is not ready for final approval."}), 400
+
+#         # --- Create the Audit Log Entry ---
+#         history_entry = {
+#             "action": f"Final Approval: {decision}",
+#             "user_id": user_id_obj,
+#             "timestamp": datetime.datetime.now(datetime.timezone.utc),
+#             "details": comments
+#         }
+        
+#         # db.fs.files.update_one(
+#         #     {'_id': file_id_obj},
+#         #     {
+#         #         '$set': {'status': decision},
+#         #         '$push': {'history': history_entry}
+#         #     }
+#         # )
+
+#         new_version = '1.0' if decision == 'Approved' else file_metadata.get('version')
+#         db.fs.files.update_one(
+#             {'_id': file_id_obj},
+#             {
+#                 '$set': {'status': decision, 'version': new_version},
+#                 '$push': {'history': history_entry}
+#             }
+#         )
+
+#         return jsonify({"message": f"Document has been {decision.lower()}"}), 200
+
+#     except InvalidId:
+#         return jsonify({"error": "Invalid file ID format"}), 400
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500    
+    
+
+@document_workflow_blueprint.route("/<file_id>/sign", methods=['POST'])
 @jwt_required()
-def final_approve_document(file_id):
+def sign_and_approve_document(file_id):
     init_gridfs()
     
     data = request.get_json()
-    decision = data.get('decision')
     comments = data.get('comments', '')
-
-    if not decision or decision not in ['Approved', 'Rejected']:
-        return jsonify({"error": "Invalid decision. Must be 'Approved' or 'Rejected'."}), 400
 
     try:
         file_id_obj = ObjectId(file_id)
         user_id_obj = ObjectId(get_jwt_identity())
 
+        # --- Get User and Document ---
         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
+        approver = db.users.find_one({'_id': user_id_obj})
 
         if not file_metadata:
             return jsonify({"error": "File not found"}), 404
+        if not approver:
+            return jsonify({"error": "Approver not found"}), 404
         
-        # --- Authorization Check ---
-        # For now, we'll assume an 'Admin' is the approver.
-        # A full implementation would have a separate 'approvers' field.
-        user_profile = db.users.find_one({'_id': user_id_obj})
-        if not user_profile or user_profile.get('role') != 'Admin':
+        # --- Authorization & State Checks ---
+        if approver.get('role') != 'Admin':
              return jsonify({"error": "Forbidden: You are not an approver"}), 403
-
-        # --- State Machine Check ---
         if file_metadata['status'] != 'Review Complete':
-            return jsonify({"error": f"Document is in '{file_metadata['status']}' status and is not ready for final approval."}), 400
+            return jsonify({"error": f"Document is not ready for final approval."}), 400
 
-        # --- Create the Audit Log Entry ---
+        # --- Digital Signature Logic ---
+        # 1. Read the document content from GridFS
+        file_content = fs.get(file_id_obj).read()
+        
+        # 2. Get the approver's private key
+        private_key = approver.get('private_key')
+        if not private_key:
+            return jsonify({"error": "Approver does not have a private key."}), 500
+            
+        # 3. Sign the document content
+        signature = sign_data(private_key, file_content)
+
+        # --- Create Audit Log and Update Document ---
         history_entry = {
-            "action": f"Final Approval: {decision}",
+            "action": "Published",
             "user_id": user_id_obj,
             "timestamp": datetime.datetime.now(datetime.timezone.utc),
             "details": comments
         }
         
-        # db.fs.files.update_one(
-        #     {'_id': file_id_obj},
-        #     {
-        #         '$set': {'status': decision},
-        #         '$push': {'history': history_entry}
-        #     }
-        # )
-
-        new_version = '1.0' if decision == 'Approved' else file_metadata.get('version')
         db.fs.files.update_one(
             {'_id': file_id_obj},
             {
-                '$set': {'status': decision, 'version': new_version},
+                '$set': {
+                    'status': 'Published', 
+                    'version': '1.0',
+                    'signature': signature, 
+                    'signed_by': user_id_obj,
+                    'signed_at': datetime.datetime.now(datetime.timezone.utc)
+                },
                 '$push': {'history': history_entry}
             }
         )
 
-        return jsonify({"message": f"Document has been {decision.lower()}"}), 200
+        return jsonify({"message": "Document has been successfully signed and published"}), 200
 
     except InvalidId:
         return jsonify({"error": "Invalid file ID format"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500    
+        return jsonify({"error": str(e)}), 500
