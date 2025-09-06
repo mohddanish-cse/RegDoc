@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
 import ReviewModal from "./ReviewModal";
 import DocumentTable from "./DocumentTable";
 import ApprovalModal from "./ApprovalModal";
-import UploadModal from "./UploadModal"; // <-- Import UploadModal
+import UploadModal from "./UploadModal";
 import { useOutletContext } from "react-router-dom";
 
 function Dashboard() {
@@ -13,6 +13,10 @@ function Dashboard() {
   const [selectedDoc, setSelectedDoc] = useState(null);
 
   const { user: currentUser } = useOutletContext();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // State for Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -24,18 +28,40 @@ function Dashboard() {
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
 
-  const fetchDocuments = async () => {
+  // const fetchDocuments = async () => {
+  //   try {
+  //     const data = await apiCall("/documents/");
+  //     setDocuments(data);
+  //   } catch (err) {
+  //     setError(err.message);
+  //   }
+  // };
+
+  // useEffect(() => {
+  //   fetchDocuments();
+  // }, []);
+
+  const fetchDocuments = useCallback(async () => {
     try {
-      const data = await apiCall("/documents/");
-      setDocuments(data);
+      // Pass page and search params to the API call
+      const data = await apiCall(
+        `/documents/?page=${currentPage}&limit=10&search=${searchQuery}`
+      );
+      setDocuments(data.documents);
+      setTotalPages(data.totalPages);
     } catch (err) {
       setError(err.message);
     }
-  };
+  }, [currentPage, searchQuery]);
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [fetchDocuments]);
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1); // Reset to first page on new search
+  };
 
   // --- Modal Control Functions ---
   const openSubmitModal = async (doc) => {
@@ -63,7 +89,7 @@ function Dashboard() {
     setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
-    setIsUploadModalOpen(false); // <-- Close upload modal
+    setIsUploadModalOpen(false);
     setSelectedDoc(null);
   };
 
@@ -106,10 +132,20 @@ function Dashboard() {
   return (
     <>
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 flex justify-between items-center">
+        <div className="px-6 py-4 flex justify-between items-center gap-4 flex-wrap">
           <h2 className="text-2xl font-bold text-gray-800">
             Document Dashboard
           </h2>
+
+          {/* --- NEW: Search Input --- */}
+          <input
+            type="text"
+            placeholder="Search by name or number..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="px-3 py-2 border border-gray-300 rounded-md shadow-sm w-full sm:w-1/3"
+          />
+
           {/* --- The New Upload Button --- */}
           <button
             onClick={() => setIsUploadModalOpen(true)}
@@ -125,6 +161,27 @@ function Dashboard() {
           onOpenReviewModal={openReviewModal}
           onOpenApprovalModal={openApprovalModal}
         />
+      </div>
+
+      {/* --- NEW: Pagination Controls --- */}
+      <div className="px-6 py-4 flex justify-between items-center border-t">
+        <button
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
 
       {/* Submit Modal */}
