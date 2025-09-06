@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, Link } from "react-router-dom";
 import { apiCall } from "./utils/api";
 
 function App() {
@@ -46,6 +46,14 @@ function App() {
           <div className="flex justify-between items-center h-16">
             <span className="font-bold text-xl text-indigo-600">RegDoc</span>
             <div>
+              {user.role === "Admin" && (
+                <Link
+                  to="/admin/users"
+                  className="font-medium text-gray-500 hover:text-gray-900 mr-4"
+                >
+                  User Management
+                </Link>
+              )}
               <span className="mr-4">Welcome, {user.username}!</span>
               <button
                 onClick={handleLogout}
