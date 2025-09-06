@@ -15,23 +15,71 @@ def init_gridfs():
     if fs is None:
         fs = gridfs.GridFS(db)
 
+# --- OLD ---
+# @document_workflow_blueprint.route("/upload", methods=['POST'])
+# @jwt_required()
+# def upload_document():
+#     init_gridfs() # Ensure GridFS is initialized
+
+#     if 'file' not in request.files:
+#         return jsonify({"error": "No file part in the request"}), 400
+    
+#     file = request.files['file']
+
+#     if file.filename == '':
+#         return jsonify({"error": "No file selected"}), 400
+
+#     if file:
+#         user_id = get_jwt_identity()
+        
+#         # Save the file to GridFS with metadata
+#         file_id = fs.put(
+#             file, 
+#             filename=file.filename, 
+#             contentType=file.content_type,
+#             author_id=ObjectId(user_id),
+#             status='Draft',
+#             version='0.1',
+#             history=[] # To build the audit trail later
+#         )
+        
+#         return jsonify({
+#             "message": "File uploaded successfully",
+#             "file_id": str(file_id)
+#         }), 201
+
+#     return jsonify({"error": "An unexpected error occurred"}), 500
+
 @document_workflow_blueprint.route("/upload", methods=['POST'])
 @jwt_required()
 def upload_document():
-    init_gridfs() # Ensure GridFS is initialized
-
+    init_gridfs()
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
     
     file = request.files['file']
-
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
 
     if file:
         user_id = get_jwt_identity()
         
-        # Save the file to GridFS with metadata
+        # --- NEW: Generate Sequential Document Number ---
+        # Find the last document to determine the next number
+        last_doc = db.fs.files.find_one(
+            {"document_number": {"$regex": "^REG-"}},
+            sort=[("document_number", -1)]
+        )
+        
+        if last_doc and last_doc.get('document_number'):
+            last_num = int(last_doc['document_number'].split('-')[1])
+            new_num = last_num + 1
+        else:
+            new_num = 1 # This is the first document
+        
+        # Format the number with leading zeros (e.g., REG-00001)
+        doc_number = f"REG-{new_num:05d}"
+
         file_id = fs.put(
             file, 
             filename=file.filename, 
@@ -39,16 +87,15 @@ def upload_document():
             author_id=ObjectId(user_id),
             status='Draft',
             version='0.1',
-            history=[] # To build the audit trail later
+            history=[],
+            document_number=doc_number # <-- Add the new field
         )
         
         return jsonify({
             "message": "File uploaded successfully",
             "file_id": str(file_id)
         }), 201
-
     return jsonify({"error": "An unexpected error occurred"}), 500
-
 
 @document_workflow_blueprint.route("/<file_id>/submit", methods=['POST'])
 @jwt_required()
@@ -182,71 +229,7 @@ def review_document(file_id):
         return jsonify({"error": "Invalid file ID format"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-# @document_workflow_blueprint.route("/<file_id>/approve", methods=['POST'])
-# @jwt_required()
-# def final_approve_document(file_id):
-#     init_gridfs()
-    
-#     data = request.get_json()
-#     decision = data.get('decision')
-#     comments = data.get('comments', '')
-
-#     if not decision or decision not in ['Approved', 'Rejected']:
-#         return jsonify({"error": "Invalid decision. Must be 'Approved' or 'Rejected'."}), 400
-
-#     try:
-#         file_id_obj = ObjectId(file_id)
-#         user_id_obj = ObjectId(get_jwt_identity())
-
-#         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-
-#         if not file_metadata:
-#             return jsonify({"error": "File not found"}), 404
-        
-#         # --- Authorization Check ---
-#         # For now, we'll assume an 'Admin' is the approver.
-#         # A full implementation would have a separate 'approvers' field.
-#         user_profile = db.users.find_one({'_id': user_id_obj})
-#         if not user_profile or user_profile.get('role') != 'Admin':
-#              return jsonify({"error": "Forbidden: You are not an approver"}), 403
-
-#         # --- State Machine Check ---
-#         if file_metadata['status'] != 'Review Complete':
-#             return jsonify({"error": f"Document is in '{file_metadata['status']}' status and is not ready for final approval."}), 400
-
-#         # --- Create the Audit Log Entry ---
-#         history_entry = {
-#             "action": f"Final Approval: {decision}",
-#             "user_id": user_id_obj,
-#             "timestamp": datetime.datetime.now(datetime.timezone.utc),
-#             "details": comments
-#         }
-        
-#         # db.fs.files.update_one(
-#         #     {'_id': file_id_obj},
-#         #     {
-#         #         '$set': {'status': decision},
-#         #         '$push': {'history': history_entry}
-#         #     }
-#         # )
-
-#         new_version = '1.0' if decision == 'Approved' else file_metadata.get('version')
-#         db.fs.files.update_one(
-#             {'_id': file_id_obj},
-#             {
-#                 '$set': {'status': decision, 'version': new_version},
-#                 '$push': {'history': history_entry}
-#             }
-#         )
-
-#         return jsonify({"message": f"Document has been {decision.lower()}"}), 200
-
-#     except InvalidId:
-#         return jsonify({"error": "Invalid file ID format"}), 400
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500    
-    
+  
 
 @document_workflow_blueprint.route("/<file_id>/sign", methods=['POST'])
 @jwt_required()

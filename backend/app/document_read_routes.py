@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, send_file
+from flask import Blueprint, jsonify, send_file ,request
 from . import db
 from flask_jwt_extended import jwt_required
 import gridfs
@@ -14,42 +14,92 @@ def init_gridfs():
     if fs is None:
         fs = gridfs.GridFS(db)
 
-# GET /api/documents/
+# # GET /api/documents/
+# @document_read_blueprint.route("/", methods=['GET'])
+# @jwt_required()
+# def list_documents():
+#     init_gridfs()
+
+#     try:
+#         documents_list = []
+#         # 1. Fetch all file metadata, sorted by date
+#         for doc in db.fs.files.find({}).sort('uploadDate', -1):
+            
+#             # 2. For each document, safely fetch the author's details
+#             author = None
+#             if doc.get('author_id'):
+#                 author = db.users.find_one({'_id': doc.get('author_id')})
+
+#             # 3. Manually and safely build the response object for each document
+#             processed_doc = {
+#                 'id': str(doc.get('_id')),
+#                 'filename': doc.get('filename'),
+#                 'contentType': doc.get('contentType'),
+#                 'uploadDate': doc.get('uploadDate').isoformat() if doc.get('uploadDate') else None,
+#                 'status': doc.get('status'),
+#                 'version': doc.get('version'),
+#                 'author_id': str(doc.get('author_id')),
+#                 'author': author.get('username') if author else 'Unknown',
+#                 'reviewers': [str(rid) for rid in doc.get('reviewers', [])]
+#             }
+#             documents_list.append(processed_doc)
+
+#         return jsonify(documents_list), 200
+
+#     except Exception as e:
+#         print(f"Error in list_documents: {e}")
+#         return jsonify({"error": "An internal server error occurred"}), 500
+
 @document_read_blueprint.route("/", methods=['GET'])
 @jwt_required()
 def list_documents():
     init_gridfs()
-
     try:
-        documents_list = []
-        # 1. Fetch all file metadata, sorted by date
-        for doc in db.fs.files.find({}).sort('uploadDate', -1):
-            
-            # 2. For each document, safely fetch the author's details
-            author = None
-            if doc.get('author_id'):
-                author = db.users.find_one({'_id': doc.get('author_id')})
+        # --- Pagination and Search Query Parameters ---
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10)) # Let's show 10 docs per page
+        search_query = request.args.get('search', '')
+        
+        skip = (page - 1) * limit
+        
+        query = {}
+        # --- Build the search query ---
+        if search_query:
+            # Search by filename (case-insensitive) or document number (case-insensitive)
+            query['$or'] = [
+                {'filename': {'$regex': search_query, '$options': 'i'}},
+                {'document_number': {'$regex': search_query, '$options': 'i'}}
+            ]
 
-            # 3. Manually and safely build the response object for each document
+        # Fetch the paginated documents from fs.files
+        documents_cursor = db.fs.files.find(query).sort('uploadDate', -1).skip(skip).limit(limit)
+        
+        # Get the total count for pagination
+        total_documents = db.fs.files.count_documents(query)
+
+        documents_list = []
+        for doc in documents_cursor:
+            author = db.users.find_one({'_id': doc.get('author_id')})
             processed_doc = {
                 'id': str(doc.get('_id')),
+                'document_number': doc.get('document_number'),
                 'filename': doc.get('filename'),
-                'contentType': doc.get('contentType'),
-                'uploadDate': doc.get('uploadDate').isoformat() if doc.get('uploadDate') else None,
                 'status': doc.get('status'),
-                'version': doc.get('version'),
                 'author_id': str(doc.get('author_id')),
                 'author': author.get('username') if author else 'Unknown',
                 'reviewers': [str(rid) for rid in doc.get('reviewers', [])]
             }
             documents_list.append(processed_doc)
 
-        return jsonify(documents_list), 200
+        return jsonify({
+            'documents': documents_list,
+            'totalPages': (total_documents + limit - 1) // limit,
+            'currentPage': page
+        }), 200
 
     except Exception as e:
         print(f"Error in list_documents: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
-
 
 # --- GET SINGLE DOCUMENT DETAILS ---
 # GET /api/documents/<file_id>
