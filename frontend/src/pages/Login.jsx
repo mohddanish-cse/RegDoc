@@ -9,7 +9,6 @@ function Login({ onLoginSuccess, onShowRegister }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
-
     try {
       const data = await apiCall("/auth/login", "POST", { email, password });
       onLoginSuccess(data.access_token);
@@ -19,13 +18,13 @@ function Login({ onLoginSuccess, onShowRegister }) {
   };
 
   return (
-    <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold text-center text-gray-900">
+    <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-200">
+      <h2 className="text-3xl font-bold text-center text-gray-900">
         Sign in to your account
       </h2>
       <form className="space-y-6" onSubmit={handleSubmit}>
         {error && (
-          <p className="p-2 text-sm text-center text-red-700 bg-red-100 rounded-lg">
+          <p className="p-3 text-sm text-center text-red-700 bg-red-100 rounded-lg">
             {error}
           </p>
         )}
@@ -43,7 +42,7 @@ function Login({ onLoginSuccess, onShowRegister }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         <div>
@@ -60,13 +59,13 @@ function Login({ onLoginSuccess, onShowRegister }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         <div>
           <button
             type="submit"
-            className="w-full px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="w-full px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             Sign in
           </button>
@@ -76,7 +75,7 @@ function Login({ onLoginSuccess, onShowRegister }) {
         Don't have an account?{" "}
         <button
           onClick={onShowRegister}
-          className="font-medium text-indigo-600 hover:text-indigo-500"
+          className="font-medium text-blue-600 hover:text-blue-500"
         >
           Sign up
         </button>

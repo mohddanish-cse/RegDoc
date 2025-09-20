@@ -91,7 +91,7 @@ function UserManagementPage() {
                     {/* Update the button's onClick handler */}
                     <button
                       onClick={() => openModal(user)}
-                      className="text-indigo-600 hover:text-indigo-900"
+                      className="text-primary hover:text-indigo-900"
                     >
                       Edit Role
                     </button>

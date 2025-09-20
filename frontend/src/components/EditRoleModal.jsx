@@ -60,7 +60,7 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleSave}
-              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              className="inline-flex justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
             >
               Save Changes
             </button>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import StatusBadge from "./StatusBadge";
 
 function DocumentTable({
   documents,
@@ -44,13 +45,13 @@ function DocumentTable({
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     <Link
                       to={`/documents/${doc.id}`}
-                      className="text-indigo-600 hover:text-indigo-800 hover:underline"
+                      className="text-primary hover:text-indigo-800 hover:underline"
                     >
                       {doc.filename}
                     </Link>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {doc.status}
+                    <StatusBadge status={doc.status} />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {doc.author}
@@ -59,7 +60,7 @@ function DocumentTable({
                     {doc.status === "Draft" && isAuthor && (
                       <button
                         onClick={() => onOpenSubmitModal(doc)}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        className="text-primary hover:text-indigo-900"
                       >
                         Submit for Review
                       </button>
