@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
-import ReviewModal from "./ReviewModal";
-import DocumentTable from "./DocumentTable";
-import ApprovalModal from "./ApprovalModal";
-import UploadModal from "./UploadModal";
+import ReviewModal from "../components/ReviewModal";
+import DocumentTable from "../components/DocumentTable";
+import ApprovalModal from "../components/ApprovalModal";
+import UploadModal from "../components/UploadModal";
 import { useOutletContext } from "react-router-dom";
 
-function Dashboard() {
+function LibraryPage() {
   const [documents, setDocuments] = useState([]);
   const [error, setError] = useState("");
   const [selectedDoc, setSelectedDoc] = useState(null);
 
-  const { user: currentUser } = useOutletContext();
+  const { user: currentUser, refreshKey } = useOutletContext();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -27,19 +27,6 @@ function Dashboard() {
   // State for Submit Modal Data
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
-
-  // const fetchDocuments = async () => {
-  //   try {
-  //     const data = await apiCall("/documents/");
-  //     setDocuments(data);
-  //   } catch (err) {
-  //     setError(err.message);
-  //   }
-  // };
-
-  // useEffect(() => {
-  //   fetchDocuments();
-  // }, []);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -56,7 +43,7 @@ function Dashboard() {
 
   useEffect(() => {
     fetchDocuments();
-  }, [fetchDocuments]);
+  }, [fetchDocuments, refreshKey]);
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -147,12 +134,12 @@ function Dashboard() {
           />
 
           {/* --- The New Upload Button --- */}
-          <button
+          {/* <button
             onClick={() => setIsUploadModalOpen(true)}
-            className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium  hover:bg-primary-hover"
           >
             Upload Document
-          </button>
+          </button> */}
         </div>
         <DocumentTable
           documents={documents}
@@ -220,7 +207,7 @@ function Dashboard() {
             <div className="mt-6 flex gap-4">
               <button
                 onClick={handleConfirmSubmit}
-                className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:bg-gray-400"
+                className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50"
                 disabled={selectedReviewers.length === 0}
               >
                 Confirm Submit
@@ -262,4 +249,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default LibraryPage;

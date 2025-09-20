@@ -38,7 +38,7 @@ function DocumentView() {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-4">
-        <Link to="/" className="text-indigo-600 hover:underline">
+        <Link to="/" className="text-primary hover:underline">
           &larr; Back to Dashboard
         </Link>
       </div>

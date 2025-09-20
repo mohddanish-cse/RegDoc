@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, Navigate, Link } from "react-router-dom";
 import { apiCall } from "./utils/api";
+import Tabs from "./components/Tabs"; // <-- 1. Import the new Tabs component
 
 function App() {
   const [user, setUser] = useState(null);
@@ -30,34 +31,35 @@ function App() {
   };
 
   if (isLoading) {
-    return <div>Loading Application...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading Application...
+      </div>
+    );
   }
 
   // If loading is finished and there's no user, redirect to login
   if (!user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
-  // If we have a user, show the main app layout with the correct page
+  // If we have a user, show the main app layout
   return (
-    <div>
-      <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50">
+      {/* Main Navigation Bar */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <span className="font-bold text-xl text-indigo-600">RegDoc</span>
+            <Link to="/" className="font-bold text-xl text-gray-800">
+              RegDoc
+            </Link>
             <div>
-              {user.role === "Admin" && (
-                <Link
-                  to="/admin/users"
-                  className="font-medium text-gray-500 hover:text-gray-900 mr-4"
-                >
-                  User Management
-                </Link>
-              )}
-              <span className="mr-4">Welcome, {user.username}!</span>
+              <span className="mr-4 text-gray-700">
+                Welcome, {user.username}!
+              </span>
               <button
                 onClick={handleLogout}
-                className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
               >
                 Logout
               </button>
@@ -65,8 +67,12 @@ function App() {
           </div>
         </div>
       </nav>
-      <main className="p-8">
-        {/* Pass user down to all child routes */}
+
+      {/* --- NEW: Secondary Tab Bar --- */}
+      <Tabs user={user} />
+
+      {/* Page Content */}
+      <main className="p-4 sm:p-6 lg:p-8">
         <Outlet context={{ user }} />
       </main>
     </div>

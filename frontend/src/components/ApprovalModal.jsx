@@ -11,14 +11,15 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       setComments("");
       setError("");
     }
-  }, [isOpen]);
+  }, [isOpen, document]);
 
-  // This function now calls the new /sign endpoint
-  const handleSignAndPublish = async () => {
+  const handleApproval = async (decision) => {
     setError("");
     try {
-      // We only need comments, the decision is implicit in the endpoint
-      await apiCall(`/documents/${document.id}/sign`, "POST", { comments });
+      await apiCall(`/documents/${document.id}/approval`, "POST", {
+        decision, // 'Published' or 'Rejected'
+        comments,
+      });
       onApprovalSuccess();
     } catch (err) {
       setError(err.message);
@@ -33,13 +34,13 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-lg rounded bg-white p-6">
-          <Dialog.Title className="text-lg font-bold">
-            Sign and Publish Document
+        <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-bold text-gray-900">
+            Final Approval
           </Dialog.Title>
           <p className="mt-2 text-sm text-gray-600">
-            You are about to digitally sign and publish:{" "}
-            <strong>{document?.filename}</strong>. This action is final.
+            You are making a final decision for:{" "}
+            <strong>{document?.filename}</strong>
           </p>
 
           {error && (
@@ -60,16 +61,22 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
               value={comments}
               onChange={(e) => setComments(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
           <div className="mt-6 flex gap-4">
             <button
-              onClick={handleSignAndPublish}
-              className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+              onClick={() => handleApproval("Published")}
+              className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
             >
-              Sign and Publish
+              Publish Document
+            </button>
+            <button
+              onClick={() => handleApproval("Rejected")}
+              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              Reject
             </button>
             <button
               onClick={onClose}

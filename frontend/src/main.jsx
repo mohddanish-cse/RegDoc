@@ -2,7 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App.jsx";
-import Dashboard from "./components/Dashboard.jsx";
+import LibraryPage from "./pages/LibraryPage.jsx"; // Updated path
+import MyTasksPage from "./pages/MyTasksPage.jsx"; // Import new page
 import DocumentView from "./pages/DocumentView.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import UserManagementPage from "./pages/UserManagementPage.jsx";
@@ -14,8 +15,18 @@ const router = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      { index: true, element: <Dashboard /> },
-      { path: "documents/:documentId", element: <DocumentView /> },
+      {
+        index: true, // "My Tasks" is now the default page at "/"
+        element: <MyTasksPage />,
+      },
+      {
+        path: "library", // "Library" is now at "/library"
+        element: <LibraryPage />,
+      },
+      {
+        path: "documents/:documentId",
+        element: <DocumentView />,
+      },
       {
         path: "admin/users",
         element: (
