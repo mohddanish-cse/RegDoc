@@ -12,6 +12,7 @@ import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 import SubmitModal from "../components/SubmitModal";
 import AmendModal from "../components/AmendModal";
+import StatusBadge from "../components/StatusBadge";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -19,41 +20,46 @@ function DocumentView() {
   const navigate = useNavigate();
 
   const [document, setDocument] = useState(null);
+  const [versionHistory, setVersionHistory] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // State to manage all modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [isAmendModalOpen, setIsAmendModalOpen] = useState(false); // <-- New state for amend modal
-
-  // State for Submit Modal data
+  const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
 
-  const fetchDocument = async () => {
-    try {
-      setIsLoading(true);
-      const data = await apiCall(`/documents/${documentId}`);
-      setDocument(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchDocument();
-  }, [documentId]); // Re-fetch if the user navigates to a new document version
+    const fetchAllDocumentData = async () => {
+      try {
+        setIsLoading(true);
+        // Step 1: Fetch the main document's details
+        const docData = await apiCall(`/documents/${documentId}`);
+        setDocument(docData);
 
-  // --- Modal Control Functions ---
+        // Step 2: If the document has a lineage_id, fetch its full version history
+        if (docData.lineage_id) {
+          const historyData = await apiCall(
+            `/documents/lineage/${docData.lineage_id}`
+          );
+          setVersionHistory(historyData);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAllDocumentData();
+  }, [documentId]);
+
   const closeModal = () => {
     setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
-    setIsAmendModalOpen(false); // <-- Close amend modal
+    setIsAmendModalOpen(false);
   };
 
   const openSubmitModal = async () => {
@@ -68,9 +74,10 @@ function DocumentView() {
 
   const handleActionSuccess = () => {
     closeModal();
-    fetchDocument(); // Refresh the current document's data
+    fetchDocument();
   };
 
+  // --- NEW: Special handler for a successful amendment ---
   const handleAmendSuccess = (newDocumentId) => {
     closeModal();
     // Navigate the user to the new version's page for a seamless experience
@@ -163,6 +170,30 @@ function DocumentView() {
                 </p>
               </div>
             </div>
+            {/* --- NEW: Version History Section --- */}
+            <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
+              Version History
+            </h3>
+            <ul className="space-y-2">
+              {versionHistory.map((version) => (
+                <li key={version.id}>
+                  <Link
+                    to={`/documents/${version.id}`}
+                    className={`flex justify-between items-center p-2 rounded-md hover:bg-gray-100 ${
+                      version.id === documentId ? "bg-blue-50" : ""
+                    }`}
+                  >
+                    <div>
+                      <span className="font-semibold">v{version.version}</span>
+                      <span className="text-xs text-gray-500 ml-2">
+                        ({new Date(version.uploadDate).toLocaleDateString()})
+                      </span>
+                    </div>
+                    <StatusBadge status={version.status} />
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
             <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
               Audit Trail
@@ -221,6 +252,7 @@ function DocumentView() {
         onSubmit={handleConfirmSubmit}
       />
 
+      {/* --- NEW: Render the AmendModal --- */}
       <AmendModal
         isOpen={isAmendModalOpen}
         onClose={closeModal}

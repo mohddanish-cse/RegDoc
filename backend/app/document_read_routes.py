@@ -20,55 +20,69 @@ def init_gridfs():
 def list_documents():
     init_gridfs()
     try:
-        # --- Get current user's info ---
         user_id_obj = ObjectId(get_jwt_identity())
         user = db.users.find_one({'_id': user_id_obj})
-        if not user:
-            return jsonify({"error": "User not found"}), 404
+        if not user: return jsonify({"error": "User not found"}), 404
         user_role = user.get('role')
 
-        # --- Pagination and Search Query Parameters ---
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 10))
         search_query = request.args.get('search', '')
         skip = (page - 1) * limit
         
-        # --- Build the master visibility query ---
-        visibility_query = []
-        # Rule 1: Everyone can see Published documents
-        visibility_query.append({'status': 'Published'})
-        # Rule 2: Users can always see their own documents
-        visibility_query.append({'author_id': user_id_obj})
-        # Rule 3: Reviewers/Approvers can see documents assigned to them
-        if user_role in ['Reviewer', 'Admin', 'Approver']:
-            visibility_query.append({'reviewers': user_id_obj})
-            # In the future, we would add:
-            # visibility_query.append({'approvers': user_id_obj})
+        # --- NEW, ADVANCED AGGREGATION PIPELINE ---
+        pipeline = []
 
-        # The main query starts with what the user is allowed to see
-        query = {}
-        if user_role != 'Admin':
-            query['$or'] = visibility_query
-
-        # --- Add the search query on top of the visibility rules ---
+        # Step 1: Initial search filter (if any)
         if search_query:
-            search_filter = {
-                '$or': [
-                    {'filename': {'$regex': search_query, '$options': 'i'}},
-                    {'document_number': {'$regex': search_query, '$options': 'i'}}
-                ]
+            pipeline.append({
+                '$match': {
+                    '$or': [
+                        {'filename': {'$regex': search_query, '$options': 'i'}},
+                        {'document_number': {'$regex': search_query, '$options': 'i'}}
+                    ]
+                }
+            })
+
+        # Step 2: Sort by version descending to get the latest version first for each document
+        pipeline.append({'$sort': {'version': -1}})
+
+        # Step 3: Group by lineage_id to get only the latest version of each document
+        pipeline.append({
+            '$group': {
+                '_id': '$lineage_id',
+                'latest_doc': {'$first': '$$ROOT'}
             }
-            # If a query already exists, combine with $and
-            if query:
-                query = {'$and': [query, search_filter]}
-            else:
-                query = search_filter
+        })
 
-        # --- Fetch Data ---
-        documents_cursor = db.fs.files.find(query).sort('uploadDate', -1).skip(skip).limit(limit)
-        total_documents = db.fs.files.count_documents(query)
+        # Step 4: Promote the latest document to the top level
+        pipeline.append({'$replaceRoot': {'newRoot': '$latest_doc'}})
 
-        # --- Process and Return Results ---
+        # Step 5: Exclude archived documents from the main list
+        pipeline.append({'$match': {'status': {'$ne': 'Archived'}}})
+
+        # Step 6: Apply security/visibility rules
+        if user_role != 'Admin':
+            visibility_query = [
+                {'status': 'Published'},
+                {'author_id': user_id_obj},
+                {'reviewers': user_id_obj}
+            ]
+            pipeline.append({'$match': {'$or': visibility_query}})
+        
+        # We need a second pipeline for counting without pagination
+        count_pipeline = pipeline.copy()
+        
+        # Step 7: Add sorting, skipping, and limiting for pagination
+        pipeline.append({'$sort': {'uploadDate': -1}})
+        pipeline.append({'$skip': skip})
+        pipeline.append({'$limit': limit})
+
+        # Execute the pipelines
+        documents_cursor = db.fs.files.aggregate(pipeline)
+        total_documents = len(list(db.fs.files.aggregate(count_pipeline)))
+
+        # Process and return results (this part is unchanged)
         documents_list = []
         for doc in documents_cursor:
             author = db.users.find_one({'_id': doc.get('author_id')})
@@ -91,8 +105,8 @@ def list_documents():
 
     except Exception as e:
         print(f"Error in list_documents: {e}")
-        return jsonify({"error": "An internal server error occurred"}), 500
-    
+        return jsonify({"error": "An internal server error occurred"}), 500  
+
 # --- GET SINGLE DOCUMENT DETAILS ---
 # GET /api/documents/<file_id>
 
@@ -117,8 +131,8 @@ def get_document_details(file_id):
             "version": file_metadata.get('version'),
             "author": author.get('username') if author else 'Unknown',
             "author_id": str(author_id),
-            # --- THIS IS THE CRITICAL FIX ---
-            "reviewers": [str(rid) for rid in file_metadata.get('reviewers', [])]
+            "reviewers": [str(rid) for rid in file_metadata.get('reviewers', [])],
+            "lineage_id": str(file_metadata.get('lineage_id'))
         }
 
         # If the document is signed, add the signature details
@@ -260,3 +274,35 @@ def get_my_tasks():
     except Exception as e:
         print(f"Error in get_my_tasks: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
+
+@document_read_blueprint.route("/lineage/<lineage_id>", methods=['GET'])
+@jwt_required()
+def get_document_lineage(lineage_id):
+    init_gridfs()
+    try:
+        lineage_id_obj = ObjectId(lineage_id)
+
+        # Find all documents that share the same lineage_id
+        # Sort by version string descending to show newest first
+        lineage_cursor = db.fs.files.find(
+            {'lineage_id': lineage_id_obj}
+        ).sort('version', -1)
+
+        version_history = []
+        for doc in lineage_cursor:
+            version_history.append({
+                'id': str(doc['_id']),
+                'version': doc.get('version'),
+                'status': doc.get('status'),
+                'uploadDate': doc.get('uploadDate').isoformat() if doc.get('uploadDate') else None
+            })
+
+        return jsonify(version_history), 200
+
+    except InvalidId:
+        return jsonify({"error": "Invalid lineage ID format"}), 400
+    except Exception as e:
+        print(f"Error in get_document_lineage: {e}")
+        return jsonify({"error": "An internal server error occurred"}), 500
+    
+    
