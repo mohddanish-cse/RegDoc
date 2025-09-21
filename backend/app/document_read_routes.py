@@ -20,28 +20,55 @@ def init_gridfs():
 def list_documents():
     init_gridfs()
     try:
+        # --- Get current user's info ---
+        user_id_obj = ObjectId(get_jwt_identity())
+        user = db.users.find_one({'_id': user_id_obj})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        user_role = user.get('role')
+
         # --- Pagination and Search Query Parameters ---
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10)) # Let's show 10 docs per page
+        limit = int(request.args.get('limit', 10))
         search_query = request.args.get('search', '')
-        
         skip = (page - 1) * limit
         
-        query = {}
-        # --- Build the search query ---
-        if search_query:
-            # Search by filename (case-insensitive) or document number (case-insensitive)
-            query['$or'] = [
-                {'filename': {'$regex': search_query, '$options': 'i'}},
-                {'document_number': {'$regex': search_query, '$options': 'i'}}
-            ]
+        # --- Build the master visibility query ---
+        visibility_query = []
+        # Rule 1: Everyone can see Published documents
+        visibility_query.append({'status': 'Published'})
+        # Rule 2: Users can always see their own documents
+        visibility_query.append({'author_id': user_id_obj})
+        # Rule 3: Reviewers/Approvers can see documents assigned to them
+        if user_role in ['Reviewer', 'Admin', 'Approver']:
+            visibility_query.append({'reviewers': user_id_obj})
+            # In the future, we would add:
+            # visibility_query.append({'approvers': user_id_obj})
 
-        # Fetch the paginated documents from fs.files
+        # The main query starts with what the user is allowed to see
+        query = {}
+        if user_role != 'Admin':
+            query['$or'] = visibility_query
+
+        # --- Add the search query on top of the visibility rules ---
+        if search_query:
+            search_filter = {
+                '$or': [
+                    {'filename': {'$regex': search_query, '$options': 'i'}},
+                    {'document_number': {'$regex': search_query, '$options': 'i'}}
+                ]
+            }
+            # If a query already exists, combine with $and
+            if query:
+                query = {'$and': [query, search_filter]}
+            else:
+                query = search_filter
+
+        # --- Fetch Data ---
         documents_cursor = db.fs.files.find(query).sort('uploadDate', -1).skip(skip).limit(limit)
-        
-        # Get the total count for pagination
         total_documents = db.fs.files.count_documents(query)
 
+        # --- Process and Return Results ---
         documents_list = []
         for doc in documents_cursor:
             author = db.users.find_one({'_id': doc.get('author_id')})
@@ -65,7 +92,7 @@ def list_documents():
     except Exception as e:
         print(f"Error in list_documents: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
-
+    
 # --- GET SINGLE DOCUMENT DETAILS ---
 # GET /api/documents/<file_id>
 
