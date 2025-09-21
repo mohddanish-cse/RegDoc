@@ -6,21 +6,22 @@ function ActionToolbar({
   onOpenSubmitModal,
   onOpenReviewModal,
   onOpenApprovalModal,
-  onOpenAmendModal,
+  onOpenAmendModal, // This is the new prop for the amend action
 }) {
   const isAuthor = document.author_id === user.id;
   const isReviewer = document.reviewers?.includes(user.id);
   const isApprover = user.role === "Approver" || user.role === "Admin";
 
-  // --- NEW: Determine if any actions are available ---
+  // Define the conditions for showing each action
   const hasSubmitAction = document.status === "Draft" && isAuthor;
   const hasReviewAction = document.status === "In Review" && isReviewer;
   const hasApprovalAction = document.status === "Review Complete" && isApprover;
-  const hasAmendAction = document.status === "Rejected" && isAuthor;
+  const hasAmendAction = document.status === "Rejected" && isAuthor; // New condition for amend
 
-  const hasAnyAction = hasSubmitAction || hasReviewAction || hasApprovalAction;
+  const hasAnyAction =
+    hasSubmitAction || hasReviewAction || hasApprovalAction || hasAmendAction;
 
-  // If there are no actions to show, render nothing.
+  // If there are no actions for the current user to take, render nothing.
   if (!hasAnyAction) {
     return null;
   }
@@ -35,6 +36,7 @@ function ActionToolbar({
           </p>
         </div>
         <div className="flex space-x-3">
+          {/* Submit for Review Button */}
           {hasSubmitAction && (
             <button
               onClick={() => onOpenSubmitModal(document)}
@@ -44,6 +46,7 @@ function ActionToolbar({
             </button>
           )}
 
+          {/* Review Buttons */}
           {hasReviewAction && (
             <>
               <button
@@ -61,12 +64,23 @@ function ActionToolbar({
             </>
           )}
 
+          {/* Final Approval Button */}
           {hasApprovalAction && (
             <button
               onClick={() => onOpenApprovalModal(document)}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
             >
               Publish Document
+            </button>
+          )}
+
+          {/* NEW: Amend Document Button */}
+          {hasAmendAction && (
+            <button
+              onClick={() => onOpenAmendModal(document)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+            >
+              Amend Document
             </button>
           )}
         </div>

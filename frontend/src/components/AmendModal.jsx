@@ -5,7 +5,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [error, setError] = useState("");
 
-  // Reset the state whenever the modal is opened
+  // This hook ensures the modal resets its state every time it opens
   useEffect(() => {
     if (isOpen) {
       setSelectedFile(null);
@@ -38,7 +38,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-          body: formData, // Use FormData for file uploads
+          body: formData, // We use FormData for file uploads
         }
       );
 
@@ -47,7 +47,8 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
         throw new Error(data.error || "Failed to amend document");
       }
 
-      onAmendSuccess(data.new_document_id); // Pass the new ID to the parent
+      // After a successful amendment, we call the parent function with the new document's ID
+      onAmendSuccess(data.new_document_id);
     } catch (err) {
       setError(err.message);
     }
@@ -67,7 +68,8 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
           </Dialog.Title>
           <p className="mt-2 text-sm text-gray-600">
             You are submitting a new version for:{" "}
-            <strong>{document.filename}</strong> (v{document.version}).
+            <strong>{document.filename}</strong> (current version:{" "}
+            {document.version}).
           </p>
 
           {error && (

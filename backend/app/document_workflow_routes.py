@@ -200,12 +200,13 @@ def handle_final_decision(file_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+
+
 @document_workflow_blueprint.route("/<file_id>/amend", methods=['POST'])
 @jwt_required()
 def amend_document(file_id):
     init_gridfs()
     
-    # Check for the new file in the request
     if 'file' not in request.files:
         return jsonify({"error": "A new file must be provided for amendment."}), 400
     
@@ -217,37 +218,35 @@ def amend_document(file_id):
         old_doc_id_obj = ObjectId(file_id)
         user_id = get_jwt_identity()
 
-        # --- Fetch the old, rejected document ---
+        # Fetch the old, rejected document
         old_doc_metadata = db.fs.files.find_one({'_id': old_doc_id_obj})
         if not old_doc_metadata:
             return jsonify({"error": "Original document not found"}), 404
         
-        # --- Authorization & State Checks ---
+        # Authorization & State Checks
         if str(old_doc_metadata['author_id']) != user_id:
             return jsonify({"error": "Forbidden: You are not the author of this document."}), 403
         if old_doc_metadata['status'] != 'Rejected':
             return jsonify({"error": "Only rejected documents can be amended."}), 400
 
-        # --- Versioning Logic ---
-        # Increment the minor version number (e.g., "0.1" -> "0.2", "1.0" -> "1.1")
+        # Versioning Logic: Increment the minor version
         major, minor = map(int, old_doc_metadata.get('version', '0.0').split('.'))
         new_version_str = f"{major}.{minor + 1}"
 
-        # --- Create the NEW Document Version ---
-        # It inherits key properties from the old version
+        # Create the NEW Document Version
         new_file_id = fs.put(
             new_file,
-            filename=new_file.filename, # Use the new filename
-            contentType=new_file.contentType,
+            filename=new_file.filename,
+            contentType=new_file.content_type,
             author_id=old_doc_metadata['author_id'],
-            status='Draft', # Reset status to Draft
+            status='Draft', # Reset status
             version=new_version_str,
-            history=[], # Start with a clean history
+            history=[],
             document_number=old_doc_metadata['document_number'],
-            lineage_id=old_doc_metadata['lineage_id'] # IMPORTANT: Inherit the lineage ID
+            lineage_id=old_doc_metadata['lineage_id'] # Inherit the lineage ID
         )
         
-        # --- Archive the OLD Document ---
+        # Archive the OLD Document
         db.fs.files.update_one(
             {'_id': old_doc_id_obj},
             {'$set': {'status': 'Archived'}}
