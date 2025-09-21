@@ -1,20 +1,35 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link, useOutletContext } from "react-router-dom";
+import {
+  useParams,
+  Link,
+  useOutletContext,
+  useNavigate,
+} from "react-router-dom";
 import { apiCall } from "../utils/api";
+
+// Import all our components for this page
 import ActionToolbar from "../components/ActionToolbar";
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
+import SubmitModal from "../components/SubmitModal";
 
 function DocumentView() {
   const { documentId } = useParams();
   const { user: currentUser } = useOutletContext();
+  const navigate = useNavigate();
+
   const [document, setDocument] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // State for modals
+  // State to manage all modals
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+
+  // State for Submit Modal data
+  const [reviewers, setReviewers] = useState([]);
+  const [selectedReviewers, setSelectedReviewers] = useState([]);
 
   const fetchDocument = async () => {
     try {
@@ -32,9 +47,21 @@ function DocumentView() {
     fetchDocument();
   }, [documentId]);
 
+  // --- Modal Control Functions ---
   const closeModal = () => {
+    setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
+  };
+
+  const openSubmitModal = async () => {
+    setIsSubmitModalOpen(true);
+    try {
+      const reviewerData = await apiCall("/user/reviewers");
+      setReviewers(reviewerData);
+    } catch (err) {
+      alert(`Error fetching reviewers: ${err.message}`);
+    }
   };
 
   const handleActionSuccess = () => {
@@ -42,12 +69,36 @@ function DocumentView() {
     fetchDocument();
   };
 
+  const handleReviewerSelection = (reviewerId) => {
+    setSelectedReviewers((prev) =>
+      prev.includes(reviewerId)
+        ? prev.filter((id) => id !== reviewerId)
+        : [...prev, reviewerId]
+    );
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!document) return;
+    try {
+      await apiCall(`/documents/${document.id}/submit`, "POST", {
+        reviewers: selectedReviewers,
+      });
+      handleActionSuccess();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
   if (isLoading)
     return <div className="text-center p-8">Loading document...</div>;
   if (error)
     return <div className="text-center p-8 text-red-500">Error: {error}</div>;
   if (!document || !currentUser)
-    return <div className="text-center p-8">Document not found.</div>;
+    return (
+      <div className="text-center p-8">
+        Document not found or user not loaded.
+      </div>
+    );
 
   return (
     <>
@@ -61,16 +112,14 @@ function DocumentView() {
         <ActionToolbar
           document={document}
           user={currentUser}
+          onOpenSubmitModal={openSubmitModal}
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
         />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* --- CORRECTED Left Column: Metadata --- */}
           <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
             <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
-
-            {/* --- THIS IS THE NEW SIGNATURE BADGE --- */}
             {document.signature && (
               <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
                 <p className="font-bold text-green-800">Digitally Signed</p>
@@ -80,7 +129,6 @@ function DocumentView() {
                 </p>
               </div>
             )}
-
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-gray-500">Status</p>
@@ -103,7 +151,6 @@ function DocumentView() {
                 </p>
               </div>
             </div>
-
             <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
               Audit Trail
             </h3>
@@ -125,8 +172,6 @@ function DocumentView() {
                 ))}
             </ul>
           </div>
-
-          {/* Right Column: Document Preview */}
           <div className="md:col-span-2 bg-white rounded-lg shadow-md">
             <iframe
               src={`http://127.0.0.1:5000/api/documents/${documentId}/preview?jwt=${localStorage.getItem(
@@ -145,12 +190,20 @@ function DocumentView() {
         document={document}
         onReviewSuccess={handleActionSuccess}
       />
-
       <ApprovalModal
         isOpen={isApprovalModalOpen}
         onClose={closeModal}
         document={document}
         onApprovalSuccess={handleActionSuccess}
+      />
+      <SubmitModal
+        isOpen={isSubmitModalOpen}
+        onClose={closeModal}
+        document={document}
+        reviewers={reviewers}
+        selectedReviewers={selectedReviewers}
+        onReviewerSelect={handleReviewerSelection}
+        onSubmit={handleConfirmSubmit}
       />
     </>
   );

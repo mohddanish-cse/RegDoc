@@ -6,6 +6,7 @@ function ActionToolbar({
   onOpenSubmitModal,
   onOpenReviewModal,
   onOpenApprovalModal,
+  onOpenAmendModal,
 }) {
   const isAuthor = document.author_id === user.id;
   const isReviewer = document.reviewers?.includes(user.id);
@@ -15,6 +16,7 @@ function ActionToolbar({
   const hasSubmitAction = document.status === "Draft" && isAuthor;
   const hasReviewAction = document.status === "In Review" && isReviewer;
   const hasApprovalAction = document.status === "Review Complete" && isApprover;
+  const hasAmendAction = document.status === "Rejected" && isAuthor;
 
   const hasAnyAction = hasSubmitAction || hasReviewAction || hasApprovalAction;
 
