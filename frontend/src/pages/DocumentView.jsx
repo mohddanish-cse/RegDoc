@@ -7,11 +7,11 @@ import {
 } from "react-router-dom";
 import { apiCall } from "../utils/api";
 
-// Import all our components for this page
 import ActionToolbar from "../components/ActionToolbar";
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 import SubmitModal from "../components/SubmitModal";
+import AmendModal from "../components/AmendModal";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -26,6 +26,7 @@ function DocumentView() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isAmendModalOpen, setIsAmendModalOpen] = useState(false); // <-- New state for amend modal
 
   // State for Submit Modal data
   const [reviewers, setReviewers] = useState([]);
@@ -45,13 +46,14 @@ function DocumentView() {
 
   useEffect(() => {
     fetchDocument();
-  }, [documentId]);
+  }, [documentId]); // Re-fetch if the user navigates to a new document version
 
   // --- Modal Control Functions ---
   const closeModal = () => {
     setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
+    setIsAmendModalOpen(false); // <-- Close amend modal
   };
 
   const openSubmitModal = async () => {
@@ -66,7 +68,13 @@ function DocumentView() {
 
   const handleActionSuccess = () => {
     closeModal();
-    fetchDocument();
+    fetchDocument(); // Refresh the current document's data
+  };
+
+  const handleAmendSuccess = (newDocumentId) => {
+    closeModal();
+    // Navigate the user to the new version's page for a seamless experience
+    navigate(`/documents/${newDocumentId}`);
   };
 
   const handleReviewerSelection = (reviewerId) => {
@@ -115,11 +123,14 @@ function DocumentView() {
           onOpenSubmitModal={openSubmitModal}
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
+          onOpenAmendModal={() => setIsAmendModalOpen(true)} // <-- Wire up the new function
         />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Left Column: Metadata */}
           <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
             <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
+
             {document.signature && (
               <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
                 <p className="font-bold text-green-800">Digitally Signed</p>
@@ -129,6 +140,7 @@ function DocumentView() {
                 </p>
               </div>
             )}
+
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-gray-500">Status</p>
@@ -151,6 +163,7 @@ function DocumentView() {
                 </p>
               </div>
             </div>
+
             <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
               Audit Trail
             </h3>
@@ -172,6 +185,8 @@ function DocumentView() {
                 ))}
             </ul>
           </div>
+
+          {/* Right Column: Document Preview */}
           <div className="md:col-span-2 bg-white rounded-lg shadow-md">
             <iframe
               src={`http://127.0.0.1:5000/api/documents/${documentId}/preview?jwt=${localStorage.getItem(
@@ -204,6 +219,13 @@ function DocumentView() {
         selectedReviewers={selectedReviewers}
         onReviewerSelect={handleReviewerSelection}
         onSubmit={handleConfirmSubmit}
+      />
+
+      <AmendModal
+        isOpen={isAmendModalOpen}
+        onClose={closeModal}
+        document={document}
+        onAmendSuccess={handleAmendSuccess}
       />
     </>
   );
