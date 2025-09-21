@@ -100,42 +100,37 @@ def list_documents():
 @jwt_required()
 def get_document_details(file_id):
     init_gridfs()
-    
     try:
         file_id_obj = ObjectId(file_id)
-
-        # Step 1: Find the file's metadata
         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-
         if not file_metadata:
             return jsonify({"error": "File not found"}), 404
         
-        # Step 2: Find the author's details separately
         author_id = file_metadata.get('author_id')
         author = db.users.find_one({'_id': author_id})
         
-        # Step 3: Manually build the JSON-safe response
         response_data = {
-            "id": str(file_metadata['_id']),
+            "id": str(file_metadata.get('_id')),
             "filename": file_metadata.get('filename'),
-            "contentType": file_metadata.get('contentType'),
-            "uploadDate": file_metadata.get('uploadDate').isoformat(),
+            "uploadDate": file_metadata.get('uploadDate').isoformat() if file_metadata.get('uploadDate') else None,
             "status": file_metadata.get('status'),
             "version": file_metadata.get('version'),
             "author": author.get('username') if author else 'Unknown',
             "author_id": str(author_id)
         }
 
-        # --- NEW: Add signer's username if document is signed ---
+        # --- THIS IS THE NEW LOGIC ---
+        # If the document is signed, add the signature details
         if file_metadata.get('signature'):
             response_data['signature'] = file_metadata.get('signature')
             response_data['signed_at'] = file_metadata.get('signed_at').isoformat()
             
             signer_id = file_metadata.get('signed_by')
-            signer = db.users.find_one({'_id': signer_id})
-            response_data['signed_by_username'] = signer.get('username') if signer else 'Unknown'
+            if signer_id:
+                signer = db.users.find_one({'_id': signer_id})
+                response_data['signed_by_username'] = signer.get('username') if signer else 'Unknown'
 
-        # Step 4: Safely process the history array
+        # Process history (unchanged)
         history_list = []
         if 'history' in file_metadata:
             for entry in file_metadata['history']:
@@ -147,9 +142,8 @@ def get_document_details(file_id):
                     "timestamp": entry.get('timestamp').isoformat(),
                     "details": entry.get('details')
                 })
-        
         response_data['history'] = history_list
-
+        
         return jsonify(response_data), 200
 
     except InvalidId:

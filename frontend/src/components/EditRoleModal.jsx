@@ -6,7 +6,6 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
   const [newRole, setNewRole] = useState("");
   const [error, setError] = useState("");
 
-  // When the modal opens, set the dropdown to the user's current role
   useEffect(() => {
     if (user) {
       setNewRole(user.role);
@@ -17,7 +16,7 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
     setError("");
     try {
       await apiCall(`/user/${user.id}/role`, "PUT", { role: newRole });
-      onUpdateSuccess(); // Tell the parent page to refresh
+      onUpdateSuccess();
     } catch (err) {
       setError(err.message);
     }
@@ -31,8 +30,8 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-sm rounded bg-white p-6">
-          <Dialog.Title className="text-lg font-bold">
+        <Dialog.Panel className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+          <Dialog.Title className="text-lg font-bold text-gray-900">
             Edit Role for {user.username}
           </Dialog.Title>
 
@@ -49,10 +48,11 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
               id="role"
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             >
               <option>Contributor</option>
               <option>Reviewer</option>
+              <option>Approver</option> {/* <-- The new option */}
               <option>Admin</option>
             </select>
           </div>
@@ -60,7 +60,7 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleSave}
-              className="inline-flex justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+              className="inline-flex justify-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
             >
               Save Changes
             </button>
