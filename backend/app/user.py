@@ -2,9 +2,10 @@ from flask import Blueprint, jsonify, request
 from . import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson.objectid import ObjectId
-from bson.errors import InvalidId 
+from bson.errors import InvalidId
 from .decorators import admin_required
 
+# This blueprint is for user-related operations
 user_blueprint = Blueprint('user', __name__)
 
 @user_blueprint.route("/profile", methods=['GET'])
@@ -20,102 +21,67 @@ def get_profile():
             "username": user['username'],
             "email": user['email'],
             "role": user['role'],
-            "created_at": user['created_at']
+            "created_at": user['created_at'].isoformat()
         }), 200
     else:
         return jsonify({"error": "User not found"}), 404
-
-@user_blueprint.route("/admin/users", methods=['GET'])
-@jwt_required()
-@admin_required()
-def get_all_users():
-    users_collection = db.users
-    all_users = list(users_collection.find({}, {'password': 0}))
-    for user in all_users:
-        user['_id'] = str(user['_id'])
-    return jsonify(all_users), 200
 
 @user_blueprint.route("/reviewers", methods=['GET'])
 @jwt_required()
 def get_potential_reviewers():
     users_collection = db.users
     try:
-        # Find all users where the role is either 'Reviewer' or 'Admin'
-        # The $in operator matches any of the values specified in an array.
         reviewers = list(users_collection.find(
-            {'role': {'$in': ['Reviewer', 'Admin']}},
-            {'_id': 1, 'username': 1} # Projection: only return ID and username
+            {'role': {'$in': ['Reviewer', 'Admin', 'Approver']}}, # Admins/Approvers can also review
+            {'_id': 1, 'username': 1}
         ))
-
-        # Convert ObjectId to string for JSON serialization
         for reviewer in reviewers:
             reviewer['id'] = str(reviewer['_id'])
             del reviewer['_id']
-
         return jsonify(reviewers), 200
-        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 @user_blueprint.route("/all", methods=['GET'])
 @jwt_required()
 @admin_required()
 def get_all_users_admin():
     users_collection = db.users
     try:
-        # Define the fields to return (projection)
-        # EXCLUDE sensitive fields like password and keys for security
-        projection = {
-            'password': 0,
-            'private_key': 0,
-            'public_key': 0
-        }
-
+        projection = {'password': 0, 'private_key': 0, 'public_key': 0}
         all_users = list(users_collection.find({}, projection))
-        
-        # Convert ObjectId and datetime to strings for JSON
         for user in all_users:
             user['id'] = str(user['_id'])
             del user['_id']
             user['created_at'] = user['created_at'].isoformat()
-            
         return jsonify(all_users), 200
-        
     except Exception as e:
         print(f"Error in get_all_users_admin: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
-    
-
 
 @user_blueprint.route("/<user_id>/role", methods=['PUT'])
 @jwt_required()
 @admin_required()
 def update_user_role(user_id):
     users_collection = db.users
-    
     data = request.get_json()
     new_role = data.get('role')
 
-    # --- Server-side validation ---
-    if not new_role or new_role not in ['Contributor', 'Reviewer', 'Admin']:
+    # --- CORRECTED VALIDATION ---
+    if not new_role or new_role not in ['Contributor', 'Reviewer', 'Approver', 'Admin']:
         return jsonify({"error": "Invalid role specified"}), 400
 
     try:
         user_id_obj = ObjectId(user_id)
-
-        # Find the user to update
         user_to_update = users_collection.find_one({'_id': user_id_obj})
         if not user_to_update:
             return jsonify({"error": "User not found"}), 404
 
-        # --- Update the user's role in the database ---
         users_collection.update_one(
             {'_id': user_id_obj},
             {'$set': {'role': new_role}}
         )
-        
         return jsonify({"message": f"User's role successfully updated to {new_role}"}), 200
-
     except InvalidId:
         return jsonify({"error": "Invalid user ID format"}), 400
     except Exception as e:
