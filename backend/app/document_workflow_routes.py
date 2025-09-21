@@ -31,7 +31,11 @@ def upload_document():
 
     if file:
         user_id = get_jwt_identity()
-        last_doc = db.fs.files.find_one({"document_number": {"$regex": "^REG-"}}, sort=[("document_number", -1)])
+        
+        last_doc = db.fs.files.find_one(
+            {"document_number": {"$regex": "^REG-"}},
+            sort=[("document_number", -1)]
+        )
         new_num = int(last_doc['document_number'].split('-')[1]) + 1 if last_doc and last_doc.get('document_number') else 1
         doc_number = f"REG-{new_num:05d}"
 
@@ -41,11 +45,21 @@ def upload_document():
             contentType=file.content_type,
             author_id=ObjectId(user_id),
             status='Draft',
-            version='0.1',
+            version='0.1', # <-- This is the corrected version
             history=[],
             document_number=doc_number
         )
-        return jsonify({"message": "File uploaded successfully", "file_id": str(file_id)}), 201
+        
+        db.fs.files.update_one(
+            {'_id': file_id},
+            {'$set': {'lineage_id': file_id}}
+        )
+        
+        return jsonify({
+            "message": "File uploaded successfully",
+            "file_id": str(file_id)
+        }), 201
+
     return jsonify({"error": "An unexpected error occurred"}), 500
 
 # --- Submit Document for Review ---
@@ -185,3 +199,67 @@ def handle_final_decision(file_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@document_workflow_blueprint.route("/<file_id>/amend", methods=['POST'])
+@jwt_required()
+def amend_document(file_id):
+    init_gridfs()
+    
+    # Check for the new file in the request
+    if 'file' not in request.files:
+        return jsonify({"error": "A new file must be provided for amendment."}), 400
+    
+    new_file = request.files['file']
+    if new_file.filename == '':
+        return jsonify({"error": "No new file selected."}), 400
+
+    try:
+        old_doc_id_obj = ObjectId(file_id)
+        user_id = get_jwt_identity()
+
+        # --- Fetch the old, rejected document ---
+        old_doc_metadata = db.fs.files.find_one({'_id': old_doc_id_obj})
+        if not old_doc_metadata:
+            return jsonify({"error": "Original document not found"}), 404
+        
+        # --- Authorization & State Checks ---
+        if str(old_doc_metadata['author_id']) != user_id:
+            return jsonify({"error": "Forbidden: You are not the author of this document."}), 403
+        if old_doc_metadata['status'] != 'Rejected':
+            return jsonify({"error": "Only rejected documents can be amended."}), 400
+
+        # --- Versioning Logic ---
+        # Increment the minor version number (e.g., "0.1" -> "0.2", "1.0" -> "1.1")
+        major, minor = map(int, old_doc_metadata.get('version', '0.0').split('.'))
+        new_version_str = f"{major}.{minor + 1}"
+
+        # --- Create the NEW Document Version ---
+        # It inherits key properties from the old version
+        new_file_id = fs.put(
+            new_file,
+            filename=new_file.filename, # Use the new filename
+            contentType=new_file.contentType,
+            author_id=old_doc_metadata['author_id'],
+            status='Draft', # Reset status to Draft
+            version=new_version_str,
+            history=[], # Start with a clean history
+            document_number=old_doc_metadata['document_number'],
+            lineage_id=old_doc_metadata['lineage_id'] # IMPORTANT: Inherit the lineage ID
+        )
+        
+        # --- Archive the OLD Document ---
+        db.fs.files.update_one(
+            {'_id': old_doc_id_obj},
+            {'$set': {'status': 'Archived'}}
+        )
+
+        return jsonify({
+            "message": "Document successfully amended. A new version has been created in Draft state.",
+            "new_document_id": str(new_file_id)
+        }), 201
+
+    except InvalidId:
+        return jsonify({"error": "Invalid file ID format"}), 400
+    except Exception as e:
+        print(f"Error in amend_document: {e}")
+        return jsonify({"error": "An internal server error occurred"}), 500

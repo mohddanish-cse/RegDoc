@@ -116,10 +116,11 @@ def get_document_details(file_id):
             "status": file_metadata.get('status'),
             "version": file_metadata.get('version'),
             "author": author.get('username') if author else 'Unknown',
-            "author_id": str(author_id)
+            "author_id": str(author_id),
+            # --- THIS IS THE CRITICAL FIX ---
+            "reviewers": [str(rid) for rid in file_metadata.get('reviewers', [])]
         }
 
-        # --- THIS IS THE NEW LOGIC ---
         # If the document is signed, add the signature details
         if file_metadata.get('signature'):
             response_data['signature'] = file_metadata.get('signature')
@@ -130,7 +131,7 @@ def get_document_details(file_id):
                 signer = db.users.find_one({'_id': signer_id})
                 response_data['signed_by_username'] = signer.get('username') if signer else 'Unknown'
 
-        # Process history (unchanged)
+        # Process history
         history_list = []
         if 'history' in file_metadata:
             for entry in file_metadata['history']:
@@ -151,7 +152,6 @@ def get_document_details(file_id):
     except Exception as e:
         print(f"An error occurred in get_document_details: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
-
 
 # --- DOWNLOAD A DOCUMENT ---
 # GET /api/documents/<file_id>/download
