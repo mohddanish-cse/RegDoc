@@ -60,14 +60,6 @@ function App() {
               RegDoc
             </Link>
             <div>
-              {user.role === "Admin" && (
-                <Link
-                  to="/admin/users"
-                  className="font-medium text-gray-600 hover:text-gray-900 mr-6"
-                >
-                  User Management
-                </Link>
-              )}
               <span className="mr-4 text-gray-700">
                 Welcome, {user.username}!
               </span>
