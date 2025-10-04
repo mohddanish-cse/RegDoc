@@ -32,7 +32,7 @@ def get_potential_reviewers():
     users_collection = db.users
     try:
         reviewers = list(users_collection.find(
-            {'role': {'$in': ['Reviewer', 'Admin', 'Approver']}}, # Admins/Approvers can also review
+            {'role': {'$in': ['Reviewer']}}, # Admins/Approvers can also review
             {'_id': 1, 'username': 1}
         ))
         for reviewer in reviewers:
