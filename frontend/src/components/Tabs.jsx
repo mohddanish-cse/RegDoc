@@ -6,11 +6,10 @@ const TabLink = ({ to, children }) => {
   const activeClass = "border-blue-600 text-blue-600";
   const inactiveClass =
     "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-800";
-
   return (
     <NavLink
       to={to}
-      end // Add the 'end' prop to the root NavLink
+      end
       className={({ isActive }) =>
         `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
           isActive ? activeClass : inactiveClass
@@ -22,15 +21,15 @@ const TabLink = ({ to, children }) => {
   );
 };
 
-function Tabs({ user, onUploadSuccess }) {
-  // <-- Add onUploadSuccess prop
+// Accept the onUploadComplete prop from App.jsx
+function Tabs({ user, onUploadComplete }) {
   if (!user) return null;
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
-  const handleUploadSuccess = () => {
-    setIsUploadModalOpen(false);
-    onUploadSuccess(); // Call the function passed from App.jsx
+  const handleUploadSuccess = (newDocumentId) => {
+    setIsUploadModalOpen(false); // Close the modal
+    onUploadComplete(newDocumentId); // Pass the ID up to App.jsx
   };
 
   return (
@@ -38,7 +37,6 @@ function Tabs({ user, onUploadSuccess }) {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-12">
-            {/* Left side: Tabs */}
             <div className="flex space-x-8">
               <TabLink to="/">My Tasks</TabLink>
               <TabLink to="/library">Library</TabLink>
@@ -46,7 +44,6 @@ function Tabs({ user, onUploadSuccess }) {
                 <TabLink to="/admin/users">User Management</TabLink>
               )}
             </div>
-            {/* Right side: Upload Button */}
             <div>
               <button
                 onClick={() => setIsUploadModalOpen(true)}
@@ -62,7 +59,7 @@ function Tabs({ user, onUploadSuccess }) {
       <UploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        onUploadSuccess={handleUploadSuccess}
+        onUploadComplete={handleUploadSuccess} // <-- Pass the function down to the modal
       />
     </>
   );

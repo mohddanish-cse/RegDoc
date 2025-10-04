@@ -98,10 +98,48 @@ def submit_document(file_id):
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # --- Reviewer Action ---
+# @document_workflow_blueprint.route("/<file_id>/review", methods=['POST'])
+# @jwt_required()
+# def review_document(file_id):
+#     # ... This function is correct and unchanged ...
+#     init_gridfs()
+#     data = request.get_json()
+#     decision = data.get('decision')
+#     comments = data.get('comments', '')
+#     if not decision or decision not in ['Accepted', 'Rejected']:
+#         return jsonify({"error": "Invalid decision provided. Must be 'Accepted' or 'Rejected'."}), 400
+#     try:
+#         file_id_obj = ObjectId(file_id)
+#         user_id_obj = ObjectId(get_jwt_identity())
+#         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
+#         if not file_metadata: return jsonify({"error": "File not found"}), 404
+#         assigned_reviewers = file_metadata.get('reviewers', [])
+#         if user_id_obj not in assigned_reviewers: return jsonify({"error": "Forbidden: You are not an assigned reviewer."}), 403
+#         if file_metadata['status'] != 'In Review': return jsonify({"error": f"Document is in '{file_metadata['status']}' status."}), 400
+#         history = file_metadata.get('history', [])
+#         already_reviewed = any(entry['action'] in ['Review Accepted', 'Review Rejected'] and entry['user_id'] == user_id_obj for entry in history)
+#         if already_reviewed: return jsonify({"error": "You have already reviewed this document."}), 400
+#         history_entry = {"action": f"Review {decision}", "user_id": user_id_obj, "timestamp": datetime.datetime.now(datetime.timezone.utc), "details": comments}
+#         new_status = file_metadata['status']
+#         new_version = file_metadata.get('version', '0.1')
+#         reviewing_users = {entry['user_id'] for entry in history if entry['action'].startswith('Review')}
+#         reviewing_users.add(user_id_obj)
+#         if decision == 'Rejected':
+#             new_status = 'Rejected'
+#         elif len(reviewing_users) == len(assigned_reviewers):
+#             new_status = 'Review Complete'
+#             new_version = '0.2'
+#         db.fs.files.update_one(
+#             {'_id': file_id_obj},
+#             {'$set': {'status': new_status, 'version': new_version}, '$push': {'history': history_entry}}
+#         )
+#         return jsonify({"message": f"Document review submitted as '{decision}'"}), 200
+#     except InvalidId: return jsonify({"error": "Invalid file ID format"}), 400
+#     except Exception as e: return jsonify({"error": str(e)}), 500
+
 @document_workflow_blueprint.route("/<file_id>/review", methods=['POST'])
 @jwt_required()
 def review_document(file_id):
-    # ... This function is correct and unchanged ...
     init_gridfs()
     data = request.get_json()
     decision = data.get('decision')
@@ -111,10 +149,22 @@ def review_document(file_id):
     try:
         file_id_obj = ObjectId(file_id)
         user_id_obj = ObjectId(get_jwt_identity())
+        
         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
         if not file_metadata: return jsonify({"error": "File not found"}), 404
+        
+        user_profile = db.users.find_one({'_id': user_id_obj})
+        user_role = user_profile.get('role') if user_profile else None
+        
         assigned_reviewers = file_metadata.get('reviewers', [])
-        if user_id_obj not in assigned_reviewers: return jsonify({"error": "Forbidden: You are not an assigned reviewer."}), 403
+        
+        is_assigned_reviewer = user_id_obj in assigned_reviewers
+        is_admin = user_role == 'Admin'
+
+        if not is_assigned_reviewer and not is_admin:
+             return jsonify({"error": "Forbidden: You are not authorized to review this document."}), 403
+
+
         if file_metadata['status'] != 'In Review': return jsonify({"error": f"Document is in '{file_metadata['status']}' status."}), 400
         history = file_metadata.get('history', [])
         already_reviewed = any(entry['action'] in ['Review Accepted', 'Review Rejected'] and entry['user_id'] == user_id_obj for entry in history)

@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Dialog } from "@headlessui/react";
+import { apiCall } from "../utils/api";
+import toast from "react-hot-toast";
 
 function SubmitModal({
   isOpen,
@@ -8,14 +10,36 @@ function SubmitModal({
   reviewers,
   selectedReviewers,
   onReviewerSelect,
-  onSubmit,
+  onSubmitSuccess,
 }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    const toastId = toast.loading("Submitting for review...");
+
+    try {
+      await apiCall(`/documents/${document.id}/submit`, "POST", {
+        reviewers: selectedReviewers,
+      });
+      toast.success("Document submitted successfully!", { id: toastId });
+      onSubmitSuccess(); // This will close the modal and refresh the data
+    } catch (err) {
+      toast.error(`Error: ${err.message}`, { id: toastId });
+      setIsSubmitting(false); // Only re-enable buttons on error
+    }
+  };
+
   if (!isOpen || !document) {
     return null;
   }
 
   return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+    <Dialog
+      open={isOpen}
+      onClose={() => !isSubmitting && onClose()}
+      className="relative z-50"
+    >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
@@ -26,7 +50,7 @@ function SubmitModal({
             Select reviewers for: <strong>{document.filename}</strong>
           </p>
           <div className="mt-4 max-h-40 overflow-y-auto border rounded-md p-2">
-            {reviewers.length > 0 ? (
+            {reviewers && reviewers.length > 0 ? (
               reviewers.map((reviewer) => (
                 <div
                   key={reviewer.id}
@@ -37,6 +61,7 @@ function SubmitModal({
                     id={`reviewer-${reviewer.id}`}
                     checked={selectedReviewers.includes(reviewer.id)}
                     onChange={() => onReviewerSelect(reviewer.id)}
+                    disabled={isSubmitting}
                   />
                   <label htmlFor={`reviewer-${reviewer.id}`}>
                     {reviewer.username}
@@ -49,14 +74,15 @@ function SubmitModal({
           </div>
           <div className="mt-6 flex gap-4">
             <button
-              onClick={onSubmit}
+              onClick={handleSubmit}
               className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50"
-              disabled={selectedReviewers.length === 0}
+              disabled={isSubmitting || selectedReviewers.length === 0}
             >
-              Confirm Submit
+              {isSubmitting ? "Submitting..." : "Confirm Submit"}
             </button>
             <button
               onClick={onClose}
+              disabled={isSubmitting}
               className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
             >
               Cancel

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, Navigate, Link } from "react-router-dom";
+import { Outlet, Navigate, Link, useNavigate } from "react-router-dom"; // <-- Import useNavigate
 import { apiCall } from "./utils/api";
-import Tabs from "./components/Tabs"; // <-- 1. Import the new Tabs component
+import Tabs from "./components/Tabs";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate(); // <-- Initialize the navigate hook
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -16,7 +18,7 @@ function App() {
           setUser(userData);
         } catch (error) {
           console.error("Token is invalid, logging out.", error);
-          localStorage.removeItem("token");
+          handleLogout();
         }
       }
       setIsLoading(false);
@@ -30,6 +32,12 @@ function App() {
     window.location.href = "/login";
   };
 
+  // --- THIS IS THE NEW REDIRECTION LOGIC ---
+  const handleUploadComplete = (newDocumentId) => {
+    // This function is called by the modal on success and redirects the user
+    navigate(`/documents/${newDocumentId}`);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -38,15 +46,13 @@ function App() {
     );
   }
 
-  // If loading is finished and there's no user, redirect to login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // If we have a user, show the main app layout
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main Navigation Bar */}
+      <Toaster position="top-center" />
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -54,6 +60,14 @@ function App() {
               RegDoc
             </Link>
             <div>
+              {user.role === "Admin" && (
+                <Link
+                  to="/admin/users"
+                  className="font-medium text-gray-600 hover:text-gray-900 mr-6"
+                >
+                  User Management
+                </Link>
+              )}
               <span className="mr-4 text-gray-700">
                 Welcome, {user.username}!
               </span>
@@ -68,10 +82,8 @@ function App() {
         </div>
       </nav>
 
-      {/* --- NEW: Secondary Tab Bar --- */}
-      <Tabs user={user} />
+      <Tabs user={user} onUploadComplete={handleUploadComplete} />
 
-      {/* Page Content */}
       <main className="p-4 sm:p-6 lg:p-8">
         <Outlet context={{ user }} />
       </main>
