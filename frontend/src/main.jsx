@@ -10,6 +10,9 @@ import UserManagementPage from "./pages/UserManagementPage.jsx";
 import AdminRoute from "./auth/AdminRoute.jsx";
 import "./index.css";
 
+import { pdfjs } from "react-pdf";
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+
 const router = createBrowserRouter([
   {
     path: "/",

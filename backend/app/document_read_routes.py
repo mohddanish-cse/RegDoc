@@ -125,6 +125,7 @@ def get_document_details(file_id):
         
         response_data = {
             "id": str(file_metadata.get('_id')),
+            "document_number": file_metadata.get('document_number'),
             "filename": file_metadata.get('filename'),
             "uploadDate": file_metadata.get('uploadDate').isoformat() if file_metadata.get('uploadDate') else None,
             "status": file_metadata.get('status'),
