@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   useParams,
   Link,
@@ -6,13 +6,15 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { apiCall } from "../utils/api";
+import PdfViewer from "../components/PdfViewer";
 
-// Import all our components for this page
 import ActionToolbar from "../components/ActionToolbar";
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 import SubmitModal from "../components/SubmitModal";
 import AmendModal from "../components/AmendModal";
+import MetadataPanel from "../components/MetadataPanel";
+import toast from "react-hot-toast";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -20,36 +22,40 @@ function DocumentView() {
   const navigate = useNavigate();
 
   const [document, setDocument] = useState(null);
+  const [versionHistory, setVersionHistory] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // State to manage all modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
 
-  // State for Submit Modal data
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
 
-  const fetchDocument = async () => {
+  const fetchAllDocumentData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await apiCall(`/documents/${documentId}`);
-      setDocument(data);
+      const docData = await apiCall(`/documents/${documentId}`);
+      setDocument(docData);
+      if (docData.lineage_id) {
+        const historyData = await apiCall(
+          `/documents/lineage/${docData.lineage_id}`
+        );
+        setVersionHistory(historyData);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDocument();
   }, [documentId]);
 
-  // --- Modal Control Functions ---
+  useEffect(() => {
+    fetchAllDocumentData();
+  }, [fetchAllDocumentData]);
+
   const closeModal = () => {
     setIsSubmitModalOpen(false);
     setIsReviewModalOpen(false);
@@ -69,7 +75,7 @@ function DocumentView() {
 
   const handleActionSuccess = () => {
     closeModal();
-    fetchDocument();
+    fetchAllDocumentData();
   };
 
   const handleAmendSuccess = (newDocumentId) => {
@@ -115,67 +121,12 @@ function DocumentView() {
         />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
-            <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
-            {document.signature && (
-              <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
-                <p className="font-bold text-green-800">Digitally Signed</p>
-                <p className="text-sm text-green-700">
-                  by {document.signed_by_username} on{" "}
-                  {new Date(document.signed_at).toLocaleString()}
-                </p>
-              </div>
-            )}
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Status</p>
-                <p className="text-lg font-semibold text-gray-800">
-                  {document.status}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Author</p>
-                <p className="text-gray-800">{document.author}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Version</p>
-                <p className="text-gray-800">{document.version}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Upload Date</p>
-                <p className="text-gray-800">
-                  {new Date(document.uploadDate).toLocaleString()}
-                </p>
-              </div>
-            </div>
-            <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
-              Audit Trail
-            </h3>
-            <ul className="space-y-4">
-              {document.history &&
-                document.history.map((entry, index) => (
-                  <li key={index} className="border-l-4 pl-4 border-gray-200">
-                    <p className="font-semibold">{entry.action}</p>
-                    <p className="text-sm text-gray-600">
-                      by {entry.user} on{" "}
-                      {new Date(entry.timestamp).toLocaleString()}
-                    </p>
-                    {entry.details && (
-                      <p className="text-sm text-gray-500 mt-1 italic">
-                        "{entry.details}"
-                      </p>
-                    )}
-                  </li>
-                ))}
-            </ul>
-          </div>
-          <div className="md:col-span-2 bg-white rounded-lg shadow-md">
-            <iframe
-              src={`http://127.0.0.1:5000/api/documents/${documentId}/preview?jwt=${localStorage.getItem(
-                "token"
-              )}`}
-              title={document.filename}
-              className="w-full h-[85vh]"
+          <MetadataPanel document={document} versionHistory={versionHistory} />
+
+          <div className="md:col-span-2 bg-white rounded-lg shadow-md flex flex-col h-[100vh] overflow-hidden">
+            <PdfViewer
+              fileUrl={`http://127.0.0.1:5000/api/documents/${documentId}/preview`}
+              token={localStorage.getItem("token")}
             />
           </div>
         </div>
@@ -193,8 +144,6 @@ function DocumentView() {
         document={document}
         onApprovalSuccess={handleActionSuccess}
       />
-
-      {/* --- THIS IS THE FIX --- */}
       <SubmitModal
         isOpen={isSubmitModalOpen}
         onClose={closeModal}
@@ -202,9 +151,8 @@ function DocumentView() {
         reviewers={reviewers}
         selectedReviewers={selectedReviewers}
         onReviewerSelect={handleReviewerSelection}
-        onSubmitSuccess={handleActionSuccess} // Changed from 'onSubmit' to 'onSubmitSuccess'
+        onSubmitSuccess={handleActionSuccess}
       />
-
       <AmendModal
         isOpen={isAmendModalOpen}
         onClose={closeModal}

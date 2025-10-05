@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, Navigate, Link, useNavigate } from "react-router-dom"; // <-- Import useNavigate
+import { Outlet, Navigate, Link, useNavigate } from "react-router-dom";
 import { apiCall } from "./utils/api";
 import Tabs from "./components/Tabs";
 import { Toaster } from "react-hot-toast";
