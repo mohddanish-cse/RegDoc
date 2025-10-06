@@ -2,16 +2,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App.jsx";
-import LibraryPage from "./pages/LibraryPage.jsx"; // Updated path
-import MyTasksPage from "./pages/MyTasksPage.jsx"; // Import new page
+import LibraryPage from "./pages/LibraryPage.jsx";
+import MyTasksPage from "./pages/MyTasksPage.jsx";
 import DocumentView from "./pages/DocumentView.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import UserManagementPage from "./pages/UserManagementPage.jsx";
 import AdminRoute from "./auth/AdminRoute.jsx";
 import "./index.css";
-
-import { pdfjs } from "react-pdf";
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 const router = createBrowserRouter([
   {
