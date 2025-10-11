@@ -5,8 +5,9 @@ from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from .decorators import admin_required
 
-# This blueprint is for user-related operations
 user_blueprint = Blueprint('user', __name__)
+
+ALLOWED_ROLES = ["Contributor", "QC", "Reviewer", "Approver", "Admin"]
 
 @user_blueprint.route("/profile", methods=['GET'])
 @jwt_required()
@@ -67,8 +68,7 @@ def update_user_role(user_id):
     data = request.get_json()
     new_role = data.get('role')
 
-    # --- CORRECTED VALIDATION ---
-    if not new_role or new_role not in ['Contributor', 'Reviewer', 'Approver', 'Admin']:
+    if not new_role or new_role not in ALLOWED_ROLES:
         return jsonify({"error": "Invalid role specified"}), 400
 
     try:
