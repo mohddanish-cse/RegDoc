@@ -1,10 +1,10 @@
+// frontend/src/pages/MyTasksPage.jsx
+
 import React, { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { apiCall } from "../utils/api";
-import DocumentTable from "../components/DocumentTable"; // <-- We reuse the table!
-
-// Note: We need to import all the modals here now
-import UploadModal from "../components/UploadModal";
+import DocumentTable from "../components/DocumentTable";
+import UploadModal from "../components/UploadModal"; // <-- Import the modal
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 
@@ -14,7 +14,9 @@ function MyTasksPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // We need to manage the modals here, similar to the old Dashboard
+  // --- NEW: State and logic for the Upload Modal is now co-located here ---
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
@@ -35,7 +37,12 @@ function MyTasksPage() {
     fetchTasks();
   }, []);
 
-  // Modal control functions
+  // --- NEW: This is the success handler that will be called by the modal ---
+  const handleUploadSuccess = () => {
+    setIsUploadModalOpen(false); // Close the modal
+    fetchTasks(); // Refresh the data on this page
+  };
+
   const openReviewModal = (doc) => {
     setSelectedDoc(doc);
     setIsReviewModalOpen(true);
@@ -62,13 +69,32 @@ function MyTasksPage() {
 
   return (
     <>
-      {/* We pass the tasks list to the same table component */}
+      {/* --- NEW: Page header with the Upload button --- */}
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold text-gray-800">My Tasks</h1>
+        {(currentUser && currentUser.role === "Contributor") ||
+          ("Admin" && (
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-4 py-2 bg-gray-800 text-white font-semibold rounded-md hover:bg-gray-900 shadow-sm"
+            >
+              + Upload New Document
+            </button>
+          ))}
+      </div>
+
       <DocumentTable
         documents={tasks}
         currentUser={currentUser}
         onOpenReviewModal={openReviewModal}
         onOpenApprovalModal={openApprovalModal}
-        // We will add the 'Amend' modal function here later
+      />
+
+      {/* --- NEW: The UploadModal is now rendered here and correctly connected --- */}
+      <UploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onUploadSuccess={handleUploadSuccess}
       />
 
       <ReviewModal

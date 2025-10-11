@@ -13,20 +13,20 @@ function PdfViewer({ fileUrl, token }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
-  // ✨ FIX: State to hold the container's width. This is the key to the solution.
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  // Effect to load the PDF document
+  // --- This is the core of the new, robust logic ---
+  // A single useEffect to control the entire load-measure-render pipeline.
   useEffect(() => {
-    const loadPdf = async () => {
-      if (!fileUrl || !token) {
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-      setContainerWidth(0); // Reset width on new file load
+    // We define all our functions inside the effect to create a clear scope.
+    const loadAndRenderPdf = async () => {
+      // --- Step 1: Load the PDF Document ---
       try {
+        if (!fileUrl || !token) {
+          setIsLoading(false);
+          return;
+        }
+        setIsLoading(true);
+        setError(null);
+
         const response = await fetch(fileUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -38,43 +38,34 @@ function PdfViewer({ fileUrl, token }) {
 
         setPdfDoc(pdf);
         setNumPages(pdf.numPages);
-        setCurrentPage(1);
+        setCurrentPage(1); // Set the current page here
+
+        // --- Step 2: Render the First Page ---
+        // We call the render function directly after a successful load.
+        // No more race condition between different useEffects.
+        await renderPage(pdf, 1);
       } catch (err) {
+        console.error("Error during PDF loading:", err);
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
-    loadPdf();
-  }, [fileUrl, token]);
 
-  // ✨ FIX: A dedicated effect to MEASURE the container.
-  // This runs after the PDF is loaded and also if the window is resized.
-  useEffect(() => {
-    const measureContainer = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.clientWidth);
+    const renderPage = async (pdf, pageNum) => {
+      if (!pdf || !canvasRef.current || !containerRef.current) return;
+
+      // --- Step 2a: Measure the container right before rendering ---
+      const containerWidth = containerRef.current.clientWidth;
+      if (containerWidth === 0) {
+        // If the container isn't ready, wait a tiny moment and try again.
+        // This is a safety net for fast-rendering environments.
+        setTimeout(() => renderPage(pdf, pageNum), 50);
+        return;
       }
-    };
-
-    // Measure after the initial loading is complete
-    if (!isLoading) {
-      measureContainer();
-    }
-
-    window.addEventListener("resize", measureContainer);
-    return () => window.removeEventListener("resize", measureContainer);
-  }, [isLoading]); // Re-measure if loading state changes
-
-  // ✨ FIX: The RENDER effect now waits for a valid containerWidth.
-  // This prevents the race condition.
-  useEffect(() => {
-    const renderPage = async () => {
-      // The "Gate": Don't render if we don't have a PDF, a canvas, or a width.
-      if (!pdfDoc || !canvasRef.current || containerWidth === 0) return;
 
       try {
-        const page = await pdfDoc.getPage(currentPage);
+        const page = await pdf.getPage(pageNum);
         const canvas = canvasRef.current;
         const context = canvas.getContext("2d");
 
@@ -99,8 +90,40 @@ function PdfViewer({ fileUrl, token }) {
         setError("Could not render PDF page.");
       }
     };
-    renderPage();
-  }, [pdfDoc, currentPage, containerWidth]); // Now depends on the stable width state
+
+    loadAndRenderPdf();
+  }, [fileUrl, token]); // The entire pipeline runs only when the file changes.
+
+  // A separate, simple effect to handle subsequent page changes.
+  useEffect(() => {
+    if (pdfDoc) {
+      // Only run if the PDF is already loaded
+      const renderPage = async (pdf, pageNum) => {
+        // ... (render logic is duplicated here for simplicity, can be refactored)
+        if (!pdf || !canvasRef.current || !containerRef.current) return;
+        const containerWidth = containerRef.current.clientWidth;
+        if (containerWidth === 0) return;
+
+        const page = await pdf.getPage(pageNum);
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+        const dpr = window.devicePixelRatio || 1;
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = containerWidth / viewport.width;
+        const scaledViewport = page.getViewport({ scale: scale * dpr });
+        canvas.height = scaledViewport.height;
+        canvas.width = scaledViewport.width;
+        canvas.style.width = `${containerWidth}px`;
+        canvas.style.height = `${scaledViewport.height / dpr}px`;
+        const renderContext = {
+          canvasContext: context,
+          viewport: scaledViewport,
+        };
+        await page.render(renderContext).promise;
+      };
+      renderPage(pdfDoc, currentPage);
+    }
+  }, [currentPage]); // This effect ONLY runs when the user clicks 'Next' or 'Previous'
 
   if (isLoading)
     return <div className="p-8 text-center">Loading PDF preview...</div>;
@@ -113,8 +136,7 @@ function PdfViewer({ fileUrl, token }) {
         ref={containerRef}
         className="flex-grow w-full overflow-y-auto flex justify-center"
       >
-        {/* We only show the canvas if we have a width to draw on */}
-        {containerWidth > 0 && <canvas ref={canvasRef} className="shadow-lg" />}
+        <canvas ref={canvasRef} className="shadow-lg" />
       </div>
       {numPages > 0 && (
         <div className="flex-shrink-0 flex items-center justify-center gap-4 bg-white p-2 border-t w-full shadow-inner">
