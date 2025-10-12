@@ -65,7 +65,6 @@ def list_documents():
         print(f"Error in list_documents: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
 
-# --- CORRECTED: Get Single Document Details (from 'documents' collection) ---
 @document_read_blueprint.route("/<doc_id>", methods=['GET'])
 @jwt_required()
 def get_document_details(doc_id):
@@ -79,7 +78,6 @@ def get_document_details(doc_id):
 
         response_data = {
             "id": str(doc_metadata.get('_id')),
-            # --- FIX: Changed 'doc_number' back to 'document_number' to match frontend ---
             "document_number": doc_metadata.get('doc_number'),
             "filename": active_rev.get('filename'),
             "uploadDate": doc_metadata.get('created_at').isoformat(),
@@ -90,6 +88,14 @@ def get_document_details(doc_id):
             "lineage_id": doc_metadata.get('lineage_id')
         }
         
+        # --- THE FIX IS HERE ---
+        # If the document has a signature, add the signature details to the response.
+        if 'signature' in doc_metadata:
+            response_data['signature'] = doc_metadata.get('signature')
+            response_data['signed_at'] = doc_metadata.get('signed_at').isoformat()
+            response_data['signed_by_username'] = doc_metadata.get('signed_by_username', 'Unknown')
+
+        # Process history (This part is unchanged)
         history_list = []
         for entry in doc_metadata.get('history', []):
             history_list.append({
@@ -106,8 +112,7 @@ def get_document_details(doc_id):
     except Exception as e:
         print(f"An error occurred in get_document_details: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
-
-# --- CORRECTED: Preview a Document (two-step fetch) ---
+    
 @document_read_blueprint.route("/<doc_id>/preview", methods=['GET'])
 @jwt_required()
 def preview_document(doc_id):
@@ -131,43 +136,59 @@ def preview_document(doc_id):
     except (InvalidId, IndexError):
         return jsonify({"error": "Invalid ID format or revision not found"}), 400
 
-# --- CORRECTED: Get My Tasks (queries the new workflow structure) ---
+
 @document_read_blueprint.route("/my-tasks", methods=['GET'])
 @jwt_required()
 def get_my_tasks():
-    # This route remains the same, but the logic is now fully correct in context.
     try:
         user_id_obj = ObjectId(get_jwt_identity())
-        query = {
-            "workflow": {
-                "$elemMatch": {
-                    "status": "In Progress",
-                    "reviewers": {"$elemMatch": {"user_id": user_id_obj, "status": "Pending"}}
-                }
-            }
-        }
-        documents_cursor = db.documents.find(query).sort('created_at', -1)
+        user = db.users.find_one({'_id': user_id_obj})
+        if not user:
+            return jsonify(error="User not found"), 404
+
+        # --- NEW, MORE POWERFUL QUERY ---
+        # This query now finds any document where the user is an active, pending reviewer
+        # in the document's currently active stage.
+        pipeline = [
+            # Match documents that are in an active workflow state
+            {'$match': {'status': {'$in': ['In QC', 'In Review', 'Review Complete']}}},
+            # Unwind the workflow array to look at each stage individually
+            {'$unwind': '$workflow'},
+            # Match the stage that is the current active stage
+            {'$match': {'$expr': {'$eq': ['$workflow.stage_number', '$current_stage']}}},
+            # Unwind the reviewers array to look at each reviewer
+            {'$unwind': '$workflow.reviewers'},
+            # Find the specific task for the current user that is still pending
+            {'$match': {
+                'workflow.reviewers.user_id': user_id_obj,
+                'workflow.reviewers.status': 'Pending'
+            }},
+            # Re-group the document to its original shape if needed (optional but clean)
+            {'$group': {'_id': '$_id', 'doc': {'$first': '$$ROOT'}}},
+            {'$replaceRoot': {'newRoot': '$doc'}}
+        ]
+
+        documents_cursor = db.documents.aggregate(pipeline)
         
         tasks_list = []
         for doc in documents_cursor:
             active_rev = doc.get('revisions', [])[doc.get('active_revision', 0)]
             tasks_list.append({
                 'id': str(doc.get('_id')),
-                'document_number': doc.get('doc_number'), #<-- FIX: Ensure consistency here too
+                'document_number': doc.get('doc_number'),
                 'filename': active_rev.get('filename'),
                 'status': doc.get('status'),
                 'author': doc.get('author_username', 'Unknown')
             })
         return jsonify(tasks_list), 200
+        
     except Exception as e:
         print(f"Error in get_my_tasks: {e}")
         return jsonify({"error": "An internal server error occurred"}), 500
 
-# --- CORRECTED: Get Lineage (from 'documents' collection) ---
 @document_read_blueprint.route("/lineage/<lineage_id>", methods=['GET'])
 @jwt_required()
 def get_document_lineage(lineage_id):
-    # This route remains the same, but the logic is now fully correct in context.
     try:
         lineage_cursor = db.documents.find({'lineage_id': lineage_id}).sort('major_version', -1)
         version_history = []

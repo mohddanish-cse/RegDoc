@@ -9,15 +9,15 @@ import {
 } from "react-router-dom";
 import { apiCall } from "../utils/api";
 import PdfViewer from "../components/PdfViewer";
-
 import ActionToolbar from "../components/ActionToolbar";
+import MetadataPanel from "../components/MetadataPanel";
+
+// Import ALL modals that this page controls
+import SubmitModal from "../components/SubmitModal";
+import QcModal from "../components/QcModal"; // <-- We need this
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
-import SubmitModal from "../components/SubmitModal"; // We will still render this
 import AmendModal from "../components/AmendModal";
-import MetadataPanel from "../components/MetadataPanel";
-// toast is no longer needed for openSubmitModal
-// import toast from "react-hot-toast";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -29,17 +29,15 @@ function DocumentView() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  // --- State management for ALL modals on this page ---
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isQcModalOpen, setIsQcModalOpen] = useState(false); // <-- FIX: Add state for the QC Modal
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
 
-  // --- REMOVED: These state variables are no longer needed in this component ---
-  // const [reviewers, setReviewers] = useState([]);
-  // const [selectedReviewers, setSelectedReviewers] = useState([]);
-
   const fetchAllDocumentData = useCallback(async () => {
-    // ... (This function remains the same)
+    // ... (This function remains unchanged)
     try {
       setIsLoading(true);
       const docData = await apiCall(`/documents/${documentId}`);
@@ -63,21 +61,15 @@ function DocumentView() {
 
   const closeModal = () => {
     setIsSubmitModalOpen(false);
+    setIsQcModalOpen(false); // <-- FIX: Ensure the QC modal can be closed
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
     setIsAmendModalOpen(false);
   };
 
-  // --- SIMPLIFIED: This function now ONLY opens the modal ---
-  // It no longer fetches any data. The modal will fetch its own data.
-  // This is the core of the fix.
-  const openSubmitModal = () => {
-    setIsSubmitModalOpen(true);
-  };
-
   const handleActionSuccess = () => {
     closeModal();
-    fetchAllDocumentData();
+    fetchAllDocumentData(); // Universal success handler
   };
 
   const handleAmendSuccess = (newDocumentId) => {
@@ -85,13 +77,9 @@ function DocumentView() {
     navigate(`/documents/${newDocumentId}`);
   };
 
-  // --- REMOVED: This logic is now handled inside the modal ---
-  // const handleReviewerSelection = (reviewerId) => { ... };
-
   if (isLoading)
     return <div className="text-center p-8">Loading document...</div>;
-  if (error)
-    return <div className="text-center p-8 text-red-500">Error: {error}</div>;
+  if (error) return <div className="text-center p-8 text-red-500">{error}</div>;
   if (!document || !currentUser)
     return (
       <div className="text-center p-8">
@@ -108,10 +96,12 @@ function DocumentView() {
           </Link>
         </div>
 
+        {/* --- FIX: Pass the onOpenQcModal prop (the "wire") to the ActionToolbar --- */}
         <ActionToolbar
           document={document}
           user={currentUser}
-          onOpenSubmitModal={openSubmitModal}
+          onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
+          onOpenQcModal={() => setIsQcModalOpen(true)} // <-- THE FIX IS HERE
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
           onOpenAmendModal={() => setIsAmendModalOpen(true)}
@@ -128,6 +118,21 @@ function DocumentView() {
         </div>
       </div>
 
+      {/* --- FIX: Render the QcModal and connect it to its state --- */}
+      <QcModal
+        isOpen={isQcModalOpen}
+        onClose={closeModal}
+        document={document}
+        onActionSuccess={handleActionSuccess}
+      />
+
+      {/* Other modals remain correctly configured */}
+      <SubmitModal
+        isOpen={isSubmitModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSubmitSuccess={handleActionSuccess}
+      />
       <ReviewModal
         isOpen={isReviewModalOpen}
         onClose={closeModal}
@@ -140,20 +145,11 @@ function DocumentView() {
         document={document}
         onApprovalSuccess={handleActionSuccess}
       />
-
-      {/* This modal is now self-sufficient and receives only the props it needs */}
-      <SubmitModal
-        isOpen={isSubmitModalOpen}
-        onClose={closeModal}
-        document={document}
-        onSubmitSuccess={handleActionSuccess}
-      />
-
       <AmendModal
         isOpen={isAmendModalOpen}
         onClose={closeModal}
         document={document}
-        onAmendSuccess={handleAmendSuccess}
+        onActionSuccess={handleActionSuccess}
       />
     </>
   );

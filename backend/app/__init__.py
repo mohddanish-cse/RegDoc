@@ -1,3 +1,5 @@
+# backend/app/__init__.py
+
 import os
 from flask import Flask
 from dotenv import load_dotenv
@@ -16,7 +18,6 @@ def create_app():
     CORS(app)
     
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
-    app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
     jwt = JWTManager(app)
     
     global db
@@ -29,23 +30,24 @@ def create_app():
         print(e)
         
     bcrypt.init_app(app)
-        
-    # Handles /api/auth/* routes
+    
+    # --- Cleaned Up Blueprint Registration ---
     from .auth import auth_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/api/auth')
 
-    # Handles /api/user/* routes
     from .user import user_blueprint
     app.register_blueprint(user_blueprint, url_prefix='/api/user')
 
-    # Handles document creation (/upload) and read routes
     from .document_routes import document_blueprint
-    from .document_read_routes import document_read_blueprint
     app.register_blueprint(document_blueprint, url_prefix='/api/documents')
+    
+    from .document_read_routes import document_read_blueprint
     app.register_blueprint(document_read_blueprint, url_prefix='/api/documents')
     
-    # Handles document state changes (/submit, /review, etc.)
     from .document_workflow_routes import document_workflow_blueprint
     app.register_blueprint(document_workflow_blueprint, url_prefix='/api/documents')
+    
+    from .workflow_template_routes import template_bp
+    app.register_blueprint(template_bp)
 
     return app

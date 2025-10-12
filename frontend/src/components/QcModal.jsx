@@ -1,31 +1,30 @@
-// frontend/src/components/ApprovalModal.jsx
+// frontend/src/components/QcModal.jsx
 
 import React, { useState } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
-function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
+function QcModal({ isOpen, onClose, document, onActionSuccess }) {
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (decision) => {
-    if (decision === "Rejected" && !comment.trim()) {
-      toast.error("A comment is required to reject the document.");
+    if (decision === "Fail" && !comment.trim()) {
+      toast.error("A comment is required to fail a QC check.");
       return;
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading(`Submitting final decision: ${decision}...`);
+    const toastId = toast.loading(`Submitting QC decision: ${decision}...`);
 
     try {
-      // --- THE FIX: Call the new, correct backend endpoint ---
-      await apiCall(`/documents/${document.id}/final-approval`, "POST", {
+      await apiCall(`/documents/${document.id}/qc-review`, "POST", {
         decision,
         comment,
       });
-      toast.success("Final decision submitted successfully!", { id: toastId });
-      onApprovalSuccess();
+      toast.success("QC decision submitted successfully!", { id: toastId });
+      onActionSuccess();
       handleClose();
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`, { id: toastId });
@@ -51,7 +50,7 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
           <Dialog.Title className="text-xl font-bold text-gray-900">
-            Perform Final Approval
+            Perform Quality Control Check
           </Dialog.Title>
           <p className="text-sm text-gray-600 mt-1">
             Document: {document.filename}
@@ -59,13 +58,13 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
 
           <div className="mt-4">
             <label
-              htmlFor="approval-comment"
+              htmlFor="qc-comment"
               className="block text-sm font-medium text-gray-700"
             >
-              Comments (Required if rejecting)
+              Comments (Required if failing)
             </label>
             <textarea
-              id="approval-comment"
+              id="qc-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
@@ -74,27 +73,27 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
             />
           </div>
 
-          <div className="mt-6 flex gap-4 justify-end">
+          <div className="mt-6 flex gap-4">
             <button
-              onClick={handleClose}
-              disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleSubmit("Rejected")}
-              disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              Reject
-            </button>
-            <button
-              onClick={() => handleSubmit("Approved")}
+              onClick={() => handleSubmit("Pass")}
               disabled={isSubmitting}
               className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
-              Approve and Sign
+              Pass QC
+            </button>
+            <button
+              onClick={() => handleSubmit("Fail")}
+              disabled={isSubmitting}
+              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              Fail QC
+            </button>
+            <button
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="ml-auto inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm"
+            >
+              Cancel
             </button>
           </div>
         </Dialog.Panel>
@@ -103,4 +102,4 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
   );
 }
 
-export default ApprovalModal;
+export default QcModal;

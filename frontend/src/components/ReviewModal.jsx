@@ -1,88 +1,113 @@
-import React, { useState, useEffect } from "react";
+// frontend/src/components/ReviewModal.jsx
+
+import React, { useState } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
 function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
-  const [comments, setComments] = useState("");
+  const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setComments("");
+  const handleSubmit = async (decision) => {
+    // Validation: Require a comment for non-approval decisions
+    if (
+      (decision === "Rejected" || decision === "ChangesRequested") &&
+      !comment.trim()
+    ) {
+      toast.error("A comment is required for this decision.");
+      return;
     }
-  }, [isOpen]);
 
-  const handleReview = async (decision) => {
     setIsSubmitting(true);
-    const toastId = toast.loading("Submitting review...");
+    const toastId = toast.loading(`Submitting review: ${decision}...`);
+
     try {
-      await apiCall(`/documents/${document.id}/review`, "POST", {
+      // --- THE FIX: Call the new, correct backend endpoint ---
+      await apiCall(`/documents/${document.id}/peer-review`, "POST", {
         decision,
-        comments,
+        comment,
       });
       toast.success("Review submitted successfully!", { id: toastId });
-      onReviewSuccess();
+      onReviewSuccess(); // Refresh the parent page's data
+      handleClose();
     } catch (err) {
-      toast.error(`Error: ${err.message}`, { id: toastId });
+      toast.error(`Submission failed: ${err.message}`, { id: toastId });
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!isOpen || !document) {
-    return null;
-  }
+  const handleClose = () => {
+    setComment("");
+    onClose();
+  };
+
+  if (!isOpen || !document) return null;
 
   return (
     <Dialog
       open={isOpen}
-      onClose={() => !isSubmitting && onClose()}
+      onClose={() => !isSubmitting && handleClose()}
       className="relative z-50"
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-lg font-bold text-gray-900">
-            Review Document
+          <Dialog.Title className="text-xl font-bold text-gray-900">
+            Perform Peer Review
           </Dialog.Title>
-          <p className="mt-2 text-sm text-gray-600">
-            You are reviewing: <strong>{document?.filename}</strong>
+          <p className="text-sm text-gray-600 mt-1">
+            Document: {document.filename}
           </p>
+
           <div className="mt-4">
             <label
-              htmlFor="comments"
+              htmlFor="review-comment"
               className="block text-sm font-medium text-gray-700"
             >
-              Comments (Optional)
+              Comments (Required for 'Reject' or 'Request Changes')
             </label>
             <textarea
-              id="comments"
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
+              id="review-comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
               disabled={isSubmitting}
             />
           </div>
-          <div className="mt-6 flex gap-4">
+
+          <div className="mt-6 flex justify-between gap-4">
+            <div>
+              <button
+                onClick={() => handleSubmit("Approved")}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                Approve
+              </button>
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleSubmit("ChangesRequested")}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center rounded-md bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:opacity-50"
+              >
+                Request Changes
+              </button>
+              <button
+                onClick={() => handleSubmit("Rejected")}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
             <button
-              onClick={() => handleReview("Accepted")}
+              onClick={handleClose}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50"
-            >
-              {isSubmitting ? "Submitting..." : "Accept Review"}
-            </button>
-            <button
-              onClick={() => handleReview("Rejected")}
-              disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {isSubmitting ? "Submitting..." : "Reject"}
-            </button>
-            <button
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              className="ml-auto inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm"
             >
               Cancel
             </button>

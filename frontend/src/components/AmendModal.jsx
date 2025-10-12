@@ -1,9 +1,14 @@
+// frontend/src/components/AmendModal.jsx
+
 import React, { useState } from "react";
 import { Dialog } from "@headlessui/react";
+import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
-function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
+// --- UPDATED: The modal now expects a generic 'onActionSuccess' prop ---
+function AmendModal({ isOpen, onClose, document, onActionSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFileChange = (event) => setSelectedFile(event.target.files[0]);
@@ -15,26 +20,29 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
     }
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting new version...");
+
     const formData = new FormData();
     formData.append("file", selectedFile);
-    const token = localStorage.getItem("token");
+    formData.append("comment", comment);
+
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/documents/${document.id}/amend`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to amend");
+      // --- THE FIX: Call the correct endpoint using our apiCall utility ---
+      await apiCall(`/documents/${document.id}/amend`, "POST", formData, true);
+
       toast.success("New version submitted successfully!", { id: toastId });
-      onAmendSuccess(data.new_document_id);
+      // --- THE FIX: Call the generic success handler to refresh the page ---
+      onActionSuccess();
+      handleClose();
     } catch (err) {
       toast.error(`Error: ${err.message}`, { id: toastId });
       setIsSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    setSelectedFile(null);
+    setComment("");
+    onClose();
   };
 
   if (!isOpen || !document) return null;
@@ -42,7 +50,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
   return (
     <Dialog
       open={isOpen}
-      onClose={() => !isSubmitting && onClose()}
+      onClose={() => !isSubmitting && handleClose()}
       className="relative z-50"
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
@@ -55,20 +63,39 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
             You are submitting a new version for:{" "}
             <strong>{document.filename}</strong>
           </p>
-          <div className="mt-4">
-            <label
-              htmlFor="amend-file-upload"
-              className="block text-sm font-medium text-gray-700"
-            >
-              New Document File
-            </label>
-            <input
-              id="amend-file-upload"
-              type="file"
-              onChange={handleFileChange}
-              className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0"
-            />
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <label
+                htmlFor="amend-file-upload"
+                className="block text-sm font-medium text-gray-700"
+              >
+                New Document File
+              </label>
+              <input
+                id="amend-file-upload"
+                type="file"
+                onChange={handleFileChange}
+                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="amend-comment"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Comment (Optional)
+              </label>
+              <textarea
+                id="amend-comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={2}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+              />
+            </div>
           </div>
+
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleAmend}
@@ -78,7 +105,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
               {isSubmitting ? "Submitting..." : "Submit New Version"}
             </button>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting}
               className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
             >
@@ -90,4 +117,5 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
     </Dialog>
   );
 }
+
 export default AmendModal;

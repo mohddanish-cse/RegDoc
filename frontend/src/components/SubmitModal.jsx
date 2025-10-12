@@ -1,46 +1,81 @@
 // frontend/src/components/SubmitModal.jsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
-import RoleAssigner from "./RoleAssigner"; // <-- Import our new modular component
+import UserSelector from "./UserSelector";
 
 function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [assignments, setAssignments] = useState({});
 
-  // State to hold the user IDs selected for each part of the workflow
-  const [selectedQcUsers, setSelectedQcUsers] = useState([]);
-  const [selectedReviewers, setSelectedReviewers] = useState([]);
-  const [selectedApprover, setSelectedApprover] = useState([]); // Will only hold one ID
+  useEffect(() => {
+    if (isOpen) {
+      const fetchTemplates = async () => {
+        try {
+          const data = await apiCall("/workflow-templates");
+          setTemplates(data);
+          if (data.length > 0) {
+            const template = data[0];
+            setSelectedTemplate(template);
+            const initialAssignments = {};
+            template.stages.forEach((stage) => {
+              initialAssignments[stage.role_required] = [];
+            });
+            setAssignments(initialAssignments);
+          }
+        } catch (err) {
+          toast.error("Could not fetch workflow templates.");
+        }
+      };
+      fetchTemplates();
+    }
+  }, [isOpen]);
+
+  const handleSelectionChange = (role, users) => {
+    setAssignments((prev) => ({ ...prev, [role]: users }));
+  };
 
   const handleSubmit = async () => {
-    // Validation
-    if (
-      selectedQcUsers.length === 0 ||
-      selectedReviewers.length === 0 ||
-      selectedApprover.length === 0
-    ) {
-      toast.error(
-        "You must assign at least one user for QC, Review, and Approval."
-      );
+    if (!selectedTemplate) {
+      toast.error("Please select a workflow template.");
       return;
+    }
+
+    const assignmentIds = Object.keys(assignments).reduce((acc, role) => {
+      // This logic now works correctly for all roles
+      acc[role] = assignments[role].map((user) => user.id);
+      return acc;
+    }, {});
+
+    // Validation to ensure all stages have assignments
+    for (const stage of selectedTemplate.stages) {
+      if (
+        !assignmentIds[stage.role_required] ||
+        assignmentIds[stage.role_required].length === 0
+      ) {
+        toast.error(
+          `You must assign at least one user for the '${stage.stage_name}' stage.`
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting workflow...");
 
-    // This simple payload is what our new backend endpoint expects
     const payload = {
-      qc_users: selectedQcUsers,
-      reviewers: selectedReviewers,
-      approver: selectedApprover[0], // Get the single ID from the array
+      template_id: selectedTemplate.id,
+      assignments: assignmentIds,
     };
 
     try {
       await apiCall(`/documents/${document.id}/submit`, "POST", payload);
-      toast.success("Document submitted for Quality Control!", { id: toastId });
-      onSubmitSuccess(); // This will close the modal and refresh the parent page's data
+      toast.success("Document submitted successfully!", { id: toastId });
+      onSubmitSuccess();
       handleClose();
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`, { id: toastId });
@@ -50,10 +85,8 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
   };
 
   const handleClose = () => {
-    // Reset all state when closing
-    setSelectedQcUsers([]);
-    setSelectedReviewers([]);
-    setSelectedApprover([]);
+    setSelectedTemplate(null);
+    setAssignments({});
     onClose();
   };
 
@@ -67,47 +100,57 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+        <Dialog.Panel className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
           <Dialog.Title className="text-xl font-bold text-gray-900">
             Submit for Review:{" "}
             <span className="text-primary">{document.filename}</span>
           </Dialog.Title>
-          <p className="text-sm text-gray-600 mt-1">
-            This will initiate the "Simple TMF Workflow".
-          </p>
 
-          <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-            {/* We use our new component three times, once for each role */}
-            <RoleAssigner
-              roleName="QC"
-              selectedUsers={selectedQcUsers}
-              onSelectionChange={setSelectedQcUsers}
-            />
-            <RoleAssigner
-              roleName="Reviewer"
-              selectedUsers={selectedReviewers}
-              onSelectionChange={setSelectedReviewers}
-            />
-            <RoleAssigner
-              roleName="Approver"
-              selectedUsers={selectedApprover}
-              onSelectionChange={setSelectedApprover}
-              isSingleSelect={true} // Approver is a single-select radio button
-            />
+          {/* --- THE FIX: Increased max-height from 60vh to 75vh --- */}
+          <div className="mt-4 space-y-4 max-h-[75vh] overflow-y-auto pr-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Workflow Template
+              </label>
+              <select
+                className="mt-1 block w-full rounded-md border-gray-300"
+                disabled={templates.length === 0}
+              >
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedTemplate &&
+              selectedTemplate.stages.map((stage) => (
+                <UserSelector
+                  key={stage.stage_number}
+                  roleName={stage.role_required}
+                  selectedUsers={assignments[stage.role_required] || []}
+                  onSelectionChange={(users) =>
+                    handleSelectionChange(stage.role_required, users)
+                  }
+                  isSingleSelect={stage.role_required === "Approver"}
+                  disabled={isSubmitting}
+                />
+              ))}
           </div>
 
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-md bg-gray-800 px-4 py-2"
             >
-              {isSubmitting ? "Submitting..." : "Confirm and Submit"}
+              Confirm and Submit
             </button>
             <button
               onClick={handleClose}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2"
             >
               Cancel
             </button>
