@@ -1,3 +1,5 @@
+// frontend/src/pages/DocumentView.jsx
+
 import React, { useState, useEffect, useCallback } from "react";
 import {
   useParams,
@@ -11,10 +13,11 @@ import PdfViewer from "../components/PdfViewer";
 import ActionToolbar from "../components/ActionToolbar";
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
-import SubmitModal from "../components/SubmitModal";
+import SubmitModal from "../components/SubmitModal"; // We will still render this
 import AmendModal from "../components/AmendModal";
 import MetadataPanel from "../components/MetadataPanel";
-import toast from "react-hot-toast";
+// toast is no longer needed for openSubmitModal
+// import toast from "react-hot-toast";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -31,10 +34,12 @@ function DocumentView() {
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
 
-  const [reviewers, setReviewers] = useState([]);
-  const [selectedReviewers, setSelectedReviewers] = useState([]);
+  // --- REMOVED: These state variables are no longer needed in this component ---
+  // const [reviewers, setReviewers] = useState([]);
+  // const [selectedReviewers, setSelectedReviewers] = useState([]);
 
   const fetchAllDocumentData = useCallback(async () => {
+    // ... (This function remains the same)
     try {
       setIsLoading(true);
       const docData = await apiCall(`/documents/${documentId}`);
@@ -63,14 +68,11 @@ function DocumentView() {
     setIsAmendModalOpen(false);
   };
 
-  const openSubmitModal = async () => {
+  // --- SIMPLIFIED: This function now ONLY opens the modal ---
+  // It no longer fetches any data. The modal will fetch its own data.
+  // This is the core of the fix.
+  const openSubmitModal = () => {
     setIsSubmitModalOpen(true);
-    try {
-      const reviewerData = await apiCall("/user/reviewers");
-      setReviewers(reviewerData);
-    } catch (err) {
-      toast.error(`Error fetching reviewers: ${err.message}`);
-    }
   };
 
   const handleActionSuccess = () => {
@@ -83,13 +85,8 @@ function DocumentView() {
     navigate(`/documents/${newDocumentId}`);
   };
 
-  const handleReviewerSelection = (reviewerId) => {
-    setSelectedReviewers((prev) =>
-      prev.includes(reviewerId)
-        ? prev.filter((id) => id !== reviewerId)
-        : [...prev, reviewerId]
-    );
-  };
+  // --- REMOVED: This logic is now handled inside the modal ---
+  // const handleReviewerSelection = (reviewerId) => { ... };
 
   if (isLoading)
     return <div className="text-center p-8">Loading document...</div>;
@@ -122,10 +119,9 @@ function DocumentView() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <MetadataPanel document={document} versionHistory={versionHistory} />
-
-          <div className="md:col-span-2 bg-white rounded-lg shadow-md flex flex-col h-[100vh] overflow-hidden">
+          <div className="md:col-span-2 bg-white rounded-lg shadow-md flex flex-col h-[90vh] overflow-hidden">
             <PdfViewer
-              fileUrl={`http://127.0.0.1:5000/api/documents/${documentId}/preview`}
+              fileUrl={`http://127.0.0.1:5000/api/documents/${document.id}/preview`}
               token={localStorage.getItem("token")}
             />
           </div>
@@ -144,15 +140,15 @@ function DocumentView() {
         document={document}
         onApprovalSuccess={handleActionSuccess}
       />
+
+      {/* This modal is now self-sufficient and receives only the props it needs */}
       <SubmitModal
         isOpen={isSubmitModalOpen}
         onClose={closeModal}
         document={document}
-        reviewers={reviewers}
-        selectedReviewers={selectedReviewers}
-        onReviewerSelect={handleReviewerSelection}
         onSubmitSuccess={handleActionSuccess}
       />
+
       <AmendModal
         isOpen={isAmendModalOpen}
         onClose={closeModal}

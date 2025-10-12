@@ -1,314 +1,88 @@
+# backend/app/document_workflow_routes.py
+
 import datetime
 from flask import Blueprint, request, jsonify
 from . import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
-import gridfs
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
-from .crypto_utils import sign_data
-from .decorators import admin_required # We still need this for other routes if necessary
 
-# This blueprint is for document workflow actions
+# --- Blueprint for document workflow actions ---
 document_workflow_blueprint = Blueprint('document_workflow', __name__)
 
-fs = None
-def init_gridfs():
-    global fs
-    if fs is None:
-        fs = gridfs.GridFS(db)
+def get_user_details(user_ids):
+    """Helper function to fetch usernames for a list of user IDs."""
+    user_object_ids = [ObjectId(uid) for uid in user_ids]
+    users = list(db.users.find({'_id': {'$in': user_object_ids}}, {'_id': 1, 'username': 1}))
+    return {str(u['_id']): u['username'] for u in users}
 
-# --- Upload Document ---
-@document_workflow_blueprint.route("/upload", methods=['POST'])
+@document_workflow_blueprint.route("/<doc_id>/submit", methods=['POST'])
 @jwt_required()
-def upload_document():
-    init_gridfs()
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No file selected"}), 400
-
-    if file:
-        user_id = get_jwt_identity()
-        
-        last_doc = db.fs.files.find_one(
-            {"document_number": {"$regex": "^REG-"}},
-            sort=[("document_number", -1)]
-        )
-        new_num = int(last_doc['document_number'].split('-')[1]) + 1 if last_doc and last_doc.get('document_number') else 1
-        doc_number = f"REG-{new_num:05d}"
-
-        file_id = fs.put(
-            file, 
-            filename=file.filename, 
-            contentType=file.content_type,
-            author_id=ObjectId(user_id),
-            status='Draft',
-            version='0.1', # <-- This is the corrected version
-            history=[],
-            document_number=doc_number
-        )
-        
-        db.fs.files.update_one(
-            {'_id': file_id},
-            {'$set': {'lineage_id': file_id}}
-        )
-        
-        return jsonify({
-            "message": "File uploaded successfully",
-            "file_id": str(file_id)
-        }), 201
-
-    return jsonify({"error": "An unexpected error occurred"}), 500
-
-# --- Submit Document for Review ---
-@document_workflow_blueprint.route("/<file_id>/submit", methods=['POST'])
-@jwt_required()
-def submit_document(file_id):
-    # ... This function is correct and unchanged ...
-    init_gridfs()
+def submit_document_for_review(doc_id):
     try:
-        data = request.get_json()
-        reviewer_ids_str = data.get('reviewers', [])
-        if not isinstance(reviewer_ids_str, list) or not reviewer_ids_str:
-            return jsonify({"error": "A list of reviewer IDs must be provided."}), 400
-        file_id_obj = ObjectId(file_id)
         user_id = get_jwt_identity()
-        file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-        if not file_metadata: return jsonify({"error": "File not found"}), 404
-        if str(file_metadata['author_id']) != user_id: return jsonify({"error": "Forbidden: You are not the author"}), 403
-        if file_metadata['status'] != 'Draft': return jsonify({"error": f"Document is already in '{file_metadata['status']}' status"}), 400
-        reviewer_ids_obj = [ObjectId(rid) for rid in reviewer_ids_str]
-        history_entry = {
-            "action": "Submitted for Review",
-            "user_id": ObjectId(user_id),
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "details": f"Submitted to {len(reviewer_ids_obj)} reviewer(s)."
+        doc_id_obj = ObjectId(doc_id)
+        document = db.documents.find_one({'_id': doc_id_obj})
+
+        # --- Validation ---
+        if not document:
+            return jsonify(error="Document not found"), 404
+        if str(document['author_id']) != user_id:
+            return jsonify(error="Forbidden: You are not the author"), 403
+        if document['status'] != 'Draft':
+            return jsonify(error="Document must be in 'Draft' status"), 400
+
+        data = request.get_json()
+        qc_user_ids = data.get('qc_users', [])
+        reviewer_ids = data.get('reviewers', [])
+        approver_id = data.get('approver')
+
+        if not qc_user_ids or not reviewer_ids or not approver_id:
+            return jsonify(error="QC, Reviewer, and Approver assignments are required"), 400
+
+        # --- Programmatically Build the TMF Workflow Template ---
+        all_user_ids = qc_user_ids + reviewer_ids + [approver_id]
+        user_details_map = get_user_details(all_user_ids)
+
+        qc_stage = {
+            "stage_number": 0, "stage_name": "Quality Control (QC)", "review_type": "parallel",
+            "status": "In Progress",
+            "reviewers": [{"user_id": ObjectId(uid), "username": user_details_map.get(uid), "status": "Pending"} for uid in qc_user_ids]
         }
-        db.fs.files.update_one(
-            {'_id': file_id_obj},
+        review_stage = {
+            "stage_number": 1, "stage_name": "Peer Review", "review_type": "parallel",
+            "status": "Pending",
+            "reviewers": [{"user_id": ObjectId(uid), "username": user_details_map.get(uid), "status": "Pending"} for uid in reviewer_ids]
+        }
+        approval_stage = {
+            "stage_number": 2, "stage_name": "Final Approval", "review_type": "parallel",
+            "status": "Pending",
+            "reviewers": [{"user_id": ObjectId(approver_id), "username": user_details_map.get(approver_id), "status": "Pending"}]
+        }
+        
+        final_workflow = [qc_stage, review_stage, approval_stage]
+
+        # --- Update the Document in DB ---
+        history_entry = {
+            "action": "Submitted", "user_id": ObjectId(user_id),
+            "user_username": db.users.find_one({'_id': ObjectId(user_id)}).get('username'),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc),
+            "details": "Submitted document for TMF Simple Workflow."
+        }
+
+        db.documents.update_one(
+            {'_id': doc_id_obj},
             {
-                '$set': {'status': 'In Review', 'reviewers': reviewer_ids_obj},
+                '$set': {
+                    'status': 'In QC', 'current_stage': 0, 'workflow': final_workflow
+                },
                 '$push': {'history': history_entry}
             }
         )
-        return jsonify({"message": "Document submitted for review successfully"}), 200
-    except InvalidId: return jsonify({"error": "Invalid ID format"}), 400
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-# --- Reviewer Action ---
-# @document_workflow_blueprint.route("/<file_id>/review", methods=['POST'])
-# @jwt_required()
-# def review_document(file_id):
-#     # ... This function is correct and unchanged ...
-#     init_gridfs()
-#     data = request.get_json()
-#     decision = data.get('decision')
-#     comments = data.get('comments', '')
-#     if not decision or decision not in ['Accepted', 'Rejected']:
-#         return jsonify({"error": "Invalid decision provided. Must be 'Accepted' or 'Rejected'."}), 400
-#     try:
-#         file_id_obj = ObjectId(file_id)
-#         user_id_obj = ObjectId(get_jwt_identity())
-#         file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-#         if not file_metadata: return jsonify({"error": "File not found"}), 404
-#         assigned_reviewers = file_metadata.get('reviewers', [])
-#         if user_id_obj not in assigned_reviewers: return jsonify({"error": "Forbidden: You are not an assigned reviewer."}), 403
-#         if file_metadata['status'] != 'In Review': return jsonify({"error": f"Document is in '{file_metadata['status']}' status."}), 400
-#         history = file_metadata.get('history', [])
-#         already_reviewed = any(entry['action'] in ['Review Accepted', 'Review Rejected'] and entry['user_id'] == user_id_obj for entry in history)
-#         if already_reviewed: return jsonify({"error": "You have already reviewed this document."}), 400
-#         history_entry = {"action": f"Review {decision}", "user_id": user_id_obj, "timestamp": datetime.datetime.now(datetime.timezone.utc), "details": comments}
-#         new_status = file_metadata['status']
-#         new_version = file_metadata.get('version', '0.1')
-#         reviewing_users = {entry['user_id'] for entry in history if entry['action'].startswith('Review')}
-#         reviewing_users.add(user_id_obj)
-#         if decision == 'Rejected':
-#             new_status = 'Rejected'
-#         elif len(reviewing_users) == len(assigned_reviewers):
-#             new_status = 'Review Complete'
-#             new_version = '0.2'
-#         db.fs.files.update_one(
-#             {'_id': file_id_obj},
-#             {'$set': {'status': new_status, 'version': new_version}, '$push': {'history': history_entry}}
-#         )
-#         return jsonify({"message": f"Document review submitted as '{decision}'"}), 200
-#     except InvalidId: return jsonify({"error": "Invalid file ID format"}), 400
-#     except Exception as e: return jsonify({"error": str(e)}), 500
-
-@document_workflow_blueprint.route("/<file_id>/review", methods=['POST'])
-@jwt_required()
-def review_document(file_id):
-    init_gridfs()
-    data = request.get_json()
-    decision = data.get('decision')
-    comments = data.get('comments', '')
-    if not decision or decision not in ['Accepted', 'Rejected']:
-        return jsonify({"error": "Invalid decision provided. Must be 'Accepted' or 'Rejected'."}), 400
-    try:
-        file_id_obj = ObjectId(file_id)
-        user_id_obj = ObjectId(get_jwt_identity())
-        
-        file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-        if not file_metadata: return jsonify({"error": "File not found"}), 404
-        
-        user_profile = db.users.find_one({'_id': user_id_obj})
-        user_role = user_profile.get('role') if user_profile else None
-        
-        assigned_reviewers = file_metadata.get('reviewers', [])
-        
-        is_assigned_reviewer = user_id_obj in assigned_reviewers
-        is_admin = user_role == 'Admin'
-
-        if not is_assigned_reviewer and not is_admin:
-             return jsonify({"error": "Forbidden: You are not authorized to review this document."}), 403
-
-
-        if file_metadata['status'] != 'In Review': return jsonify({"error": f"Document is in '{file_metadata['status']}' status."}), 400
-        history = file_metadata.get('history', [])
-        already_reviewed = any(entry['action'] in ['Review Accepted', 'Review Rejected'] and entry['user_id'] == user_id_obj for entry in history)
-        if already_reviewed: return jsonify({"error": "You have already reviewed this document."}), 400
-        history_entry = {"action": f"Review {decision}", "user_id": user_id_obj, "timestamp": datetime.datetime.now(datetime.timezone.utc), "details": comments}
-        new_status = file_metadata['status']
-        new_version = file_metadata.get('version', '0.1')
-        reviewing_users = {entry['user_id'] for entry in history if entry['action'].startswith('Review')}
-        reviewing_users.add(user_id_obj)
-        if decision == 'Rejected':
-            new_status = 'Rejected'
-        elif len(reviewing_users) == len(assigned_reviewers):
-            new_status = 'Review Complete'
-            new_version = '0.2'
-        db.fs.files.update_one(
-            {'_id': file_id_obj},
-            {'$set': {'status': new_status, 'version': new_version}, '$push': {'history': history_entry}}
-        )
-        return jsonify({"message": f"Document review submitted as '{decision}'"}), 200
-    except InvalidId: return jsonify({"error": "Invalid file ID format"}), 400
-    except Exception as e: return jsonify({"error": str(e)}), 500
-
-# --- FINAL APPROVER ACTION ---
-@document_workflow_blueprint.route("/<file_id>/approval", methods=['POST'])
-@jwt_required()
-def handle_final_decision(file_id):
-    init_gridfs()
-    
-    data = request.get_json()
-    decision = data.get('decision')
-    comments = data.get('comments', '')
-
-    if not decision or decision not in ['Published', 'Rejected']:
-        return jsonify({"error": "Invalid decision. Must be 'Published' or 'Rejected'."}), 400
-
-    try:
-        file_id_obj = ObjectId(file_id)
-        user_id_obj = ObjectId(get_jwt_identity())
-        
-        file_metadata = db.fs.files.find_one({'_id': file_id_obj})
-        approver = db.users.find_one({'_id': user_id_obj})
-
-        if not file_metadata: return jsonify({"error": "File not found"}), 404
-        if not approver: return jsonify({"error": "Approver not found"}), 404
-        
-        # --- CORRECTED AUTHORIZATION LOGIC ---
-        # Instead of an admin check, we check for the 'Approver' role.
-        # For now, Admins can also approve.
-        if approver.get('role') not in ['Approver', 'Admin']:
-             return jsonify({"error": "Forbidden: You do not have approval permissions."}), 403
-
-        if file_metadata['status'] != 'Review Complete':
-            return jsonify({"error": f"Document is not ready for final approval."}), 400
-
-        history_entry = {
-            "action": decision,
-            "user_id": user_id_obj,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "details": comments
-        }
-        
-        update_operation = {
-            '$set': {'status': decision},
-            '$push': {'history': history_entry}
-        }
-
-        if decision == 'Published':
-            file_content = fs.get(file_id_obj).read()
-            private_key = approver.get('private_key')
-            if not private_key: return jsonify({"error": "Approver missing private key."}), 500
-            
-            signature = sign_data(private_key, file_content)
-            
-            update_operation['$set']['signature'] = signature
-            update_operation['$set']['signed_by'] = user_id_obj
-            update_operation['$set']['signed_at'] = datetime.datetime.now(datetime.timezone.utc)
-            update_operation['$set']['version'] = '1.0'
-        
-        db.fs.files.update_one({'_id': file_id_obj}, update_operation)
-
-        return jsonify({"message": f"Document has been {decision.lower()}"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-
-
-@document_workflow_blueprint.route("/<file_id>/amend", methods=['POST'])
-@jwt_required()
-def amend_document(file_id):
-    init_gridfs()
-    
-    if 'file' not in request.files:
-        return jsonify({"error": "A new file must be provided for amendment."}), 400
-    
-    new_file = request.files['file']
-    if new_file.filename == '':
-        return jsonify({"error": "No new file selected."}), 400
-
-    try:
-        old_doc_id_obj = ObjectId(file_id)
-        user_id = get_jwt_identity()
-
-        # Fetch the old, rejected document
-        old_doc_metadata = db.fs.files.find_one({'_id': old_doc_id_obj})
-        if not old_doc_metadata:
-            return jsonify({"error": "Original document not found"}), 404
-        
-        # Authorization & State Checks
-        if str(old_doc_metadata['author_id']) != user_id:
-            return jsonify({"error": "Forbidden: You are not the author of this document."}), 403
-        if old_doc_metadata['status'] != 'Rejected':
-            return jsonify({"error": "Only rejected documents can be amended."}), 400
-
-        # Versioning Logic: Increment the minor version
-        major, minor = map(int, old_doc_metadata.get('version', '0.0').split('.'))
-        new_version_str = f"{major}.{minor + 1}"
-
-        # Create the NEW Document Version
-        new_file_id = fs.put(
-            new_file,
-            filename=new_file.filename,
-            contentType=new_file.content_type,
-            author_id=old_doc_metadata['author_id'],
-            status='Draft', # Reset status
-            version=new_version_str,
-            history=[],
-            document_number=old_doc_metadata['document_number'],
-            lineage_id=old_doc_metadata['lineage_id'] # Inherit the lineage ID
-        )
-        
-        # Archive the OLD Document
-        db.fs.files.update_one(
-            {'_id': old_doc_id_obj},
-            {'$set': {'status': 'Archived'}}
-        )
-
-        return jsonify({
-            "message": "Document successfully amended. A new version has been created in Draft state.",
-            "new_document_id": str(new_file_id)
-        }), 201
+        return jsonify(message="Document submitted for Quality Control"), 200
 
     except InvalidId:
-        return jsonify({"error": "Invalid file ID format"}), 400
+        return jsonify(error="Invalid document ID format"), 400
     except Exception as e:
-        print(f"Error in amend_document: {e}")
-        return jsonify({"error": "An internal server error occurred"}), 500
+        print(f"Error in submit_document_for_review: {e}")
+        return jsonify(error="An internal server error occurred"), 500
