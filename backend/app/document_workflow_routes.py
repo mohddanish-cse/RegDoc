@@ -296,6 +296,80 @@ def final_approval_review(doc_id):
 
 # Append this to the end of backend/app/document_workflow_routes.py
 
+# @document_workflow_blueprint.route("/<doc_id>/amend", methods=['POST'])
+# @jwt_required()
+# def amend_document(doc_id):
+#     if 'file' not in request.files:
+#         return jsonify({"error": "A new file must be provided"}), 400
+#     new_file = request.files['file']
+#     if new_file.filename == '':
+#         return jsonify({"error": "No new file selected"}), 400
+
+#     try:
+#         user_id_str = get_jwt_identity()
+#         doc_id_obj = ObjectId(doc_id)
+#         document = db.documents.find_one({'_id': doc_id_obj})
+
+#         # --- Validation ---
+#         if not document:
+#             return jsonify(error="Original document not found"), 404
+#         if str(document['author_id']) != user_id_str:
+#             return jsonify(error="Forbidden: You are not the author"), 403
+#         if document['status'] not in ['Rejected', 'Changes Requested']:
+#             return jsonify(error="Only documents with status 'Rejected' or 'Changes Requested' can be amended"), 400
+
+#         # --- Create New Revision ---
+#         file_id = fs.put(new_file, filename=new_file.filename, contentType=new_file.content_type)
+#         new_revision_number = document.get('active_revision', 0) + 1
+        
+#         new_revision = {
+#             "revision_number": new_revision_number,
+#             "file_id": file_id,
+#             "filename": new_file.filename,
+#             "author_comment": request.form.get('comment', 'Amended version.'),
+#             "uploaded_at": datetime.datetime.now(datetime.timezone.utc)
+#         }
+
+#         # --- Prepare History and Updates ---
+#         user = db.users.find_one({'_id': ObjectId(user_id_str)})
+#         history_entry = {
+#             "action": "Amended", "user_id": ObjectId(user_id_str),
+#             "user_username": user.get('username'),
+#             "timestamp": datetime.datetime.now(datetime.timezone.utc),
+#             "details": f"Submitted new revision {new_revision_number}."
+#         }
+        
+#         # --- Atomic Database Update ---
+#         # This one command updates everything at once.
+#         db.documents.update_one(
+#             {'_id': doc_id_obj},
+#             {
+#                 '$set': {
+#                     'status': 'Draft',      # Reset status to Draft
+#                     'workflow': [],         # Clear the old workflow
+#                     'current_stage': None,  # Reset the stage pointer
+#                     'minor_version': new_revision_number,
+#                     'active_revision': new_revision_number
+#                 },
+#                 '$push': {
+#                     'revisions': new_revision,
+#                     'history': history_entry
+#                 }
+#             }
+#         )
+        
+#         # NOTE: We no longer return a new_document_id because we are updating the existing one.
+#         return jsonify(message="Document successfully amended and reset to Draft state."), 200
+
+#     except InvalidId:
+#         return jsonify(error="Invalid document ID format"), 400
+#     except Exception as e:
+#         print(f"Error in amend_document: {e}")
+#         return jsonify(error="An internal server error occurred"), 500
+
+
+# Append this to the end of backend/app/document_workflow_routes.py
+
 @document_workflow_blueprint.route("/<doc_id>/amend", methods=['POST'])
 @jwt_required()
 def amend_document(doc_id):
@@ -307,62 +381,69 @@ def amend_document(doc_id):
 
     try:
         user_id_str = get_jwt_identity()
+        user = db.users.find_one({'_id': ObjectId(user_id_str)})
         doc_id_obj = ObjectId(doc_id)
         document = db.documents.find_one({'_id': doc_id_obj})
 
-        # --- Validation ---
-        if not document:
-            return jsonify(error="Original document not found"), 404
-        if str(document['author_id']) != user_id_str:
-            return jsonify(error="Forbidden: You are not the author"), 403
-        if document['status'] not in ['Rejected', 'Changes Requested']:
-            return jsonify(error="Only documents with status 'Rejected' or 'Changes Requested' can be amended"), 400
+        if not document: return jsonify(error="Document not found"), 404
+        if str(document['author_id']) != user_id_str: return jsonify(error="Forbidden"), 403
+        if document['status'] not in ['Rejected', 'Changes Requested', 'Approved']:
+            return jsonify(error="This document status cannot be amended"), 400
 
-        # --- Create New Revision ---
-        file_id = fs.put(new_file, filename=new_file.filename, contentType=new_file.content_type)
-        new_revision_number = document.get('active_revision', 0) + 1
-        
-        new_revision = {
-            "revision_number": new_revision_number,
-            "file_id": file_id,
-            "filename": new_file.filename,
-            "author_comment": request.form.get('comment', 'Amended version.'),
-            "uploaded_at": datetime.datetime.now(datetime.timezone.utc)
-        }
-
-        # --- Prepare History and Updates ---
-        user = db.users.find_one({'_id': ObjectId(user_id_str)})
-        history_entry = {
-            "action": "Amended", "user_id": ObjectId(user_id_str),
-            "user_username": user.get('username'),
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "details": f"Submitted new revision {new_revision_number}."
-        }
-        
-        # --- Atomic Database Update ---
-        # This one command updates everything at once.
-        db.documents.update_one(
-            {'_id': doc_id_obj},
-            {
-                '$set': {
-                    'status': 'Draft',      # Reset status to Draft
-                    'workflow': [],         # Clear the old workflow
-                    'current_stage': None,  # Reset the stage pointer
-                    'minor_version': new_revision_number,
-                    'active_revision': new_revision_number
-                },
-                '$push': {
-                    'revisions': new_revision,
-                    'history': history_entry
-                }
+        # --- PATH A: Minor Revision (for 'Changes Requested') ---
+        if document['status'] == 'Changes Requested':
+            file_id = fs.put(new_file, filename=new_file.filename, contentType=new_file.content_type)
+            new_minor_version = document.get('minor_version', 0) + 1
+            
+            new_revision = {
+                "revision_number": new_minor_version, "file_id": file_id, "filename": new_file.filename,
+                "author_comment": request.form.get('comment', f'v0.{new_minor_version}'),
+                "uploaded_at": datetime.datetime.now(datetime.timezone.utc)
             }
-        )
-        
-        # NOTE: We no longer return a new_document_id because we are updating the existing one.
-        return jsonify(message="Document successfully amended and reset to Draft state."), 200
+            history_entry = { "action": "Amended (Minor)", "user_id": ObjectId(user_id_str), "user_username": user.get('username'), "timestamp": datetime.datetime.now(datetime.timezone.utc), "details": f"Submitted new revision v0.{new_minor_version}." }
+            
+            current_stage_num = document['current_stage']
+            updated_workflow = document['workflow']
+            for reviewer in updated_workflow[current_stage_num]['reviewers']:
+                reviewer['status'] = 'Pending'
+            
+            db.documents.update_one(
+                {'_id': doc_id_obj},
+                {
+                    '$set': { 'status': 'In QC' if current_stage_num == 0 else 'In Review', 'minor_version': new_minor_version, 'active_revision': len(document.get('revisions', [])), 'workflow': updated_workflow },
+                    '$push': {'revisions': new_revision, 'history': history_entry}
+                }
+            )
+            return jsonify(message="Document revised and resubmitted."), 200
 
-    except InvalidId:
-        return jsonify(error="Invalid document ID format"), 400
+        # --- PATH B: Major Version (for 'Rejected' or 'Approved') ---
+        else:
+            new_status_for_old_doc = 'Superseded' if document['status'] == 'Approved' else 'Archived'
+            db.documents.update_one({'_id': doc_id_obj}, {'$set': {'status': new_status_for_old_doc}})
+
+            file_id = fs.put(new_file, filename=new_file.filename, contentType=new_file.content_type)
+            new_major_version = document.get('major_version', 0)
+            if document['status'] == 'Approved':
+                new_major_version += 1
+            
+            first_revision = {
+                "revision_number": 1, "file_id": file_id, "filename": new_file.filename,
+                "author_comment": request.form.get('comment', f'Initial draft for v{new_major_version}.1'),
+                "uploaded_at": datetime.datetime.now(datetime.timezone.utc)
+            }
+            
+            new_doc = {
+                "doc_number": document['doc_number'], "major_version": new_major_version, "minor_version": 1, 
+                "lineage_id": document['lineage_id'], "status": "Draft",
+                "author_id": ObjectId(user_id_str), "author_username": user.get('username'),
+                "created_at": datetime.datetime.now(datetime.timezone.utc),
+                "tmf_metadata": document['tmf_metadata'], "workflow": [], "revisions": [first_revision], "active_revision": 0,
+                "history": [{ "action": "Created (New Major Version)", "user_id": ObjectId(user_id_str), "user_username": user.get('username'), "timestamp": datetime.datetime.now(datetime.timezone.utc), "details": f"Created new draft v{new_major_version}.1." }]
+            }
+            result = db.documents.insert_one(new_doc)
+            
+            return jsonify({ "message": "New major version created.", "new_document_id": str(result.inserted_id) }), 201
+
     except Exception as e:
         print(f"Error in amend_document: {e}")
         return jsonify(error="An internal server error occurred"), 500

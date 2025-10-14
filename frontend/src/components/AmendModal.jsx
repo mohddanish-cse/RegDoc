@@ -5,8 +5,13 @@ import { Dialog } from "@headlessui/react";
 import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
-// --- UPDATED: The modal now expects a generic 'onActionSuccess' prop ---
-function AmendModal({ isOpen, onClose, document, onActionSuccess }) {
+function AmendModal({
+  isOpen,
+  onClose,
+  document,
+  onActionSuccess,
+  onAmendSuccess,
+}) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,12 +31,19 @@ function AmendModal({ isOpen, onClose, document, onActionSuccess }) {
     formData.append("comment", comment);
 
     try {
-      // --- THE FIX: Call the correct endpoint using our apiCall utility ---
-      await apiCall(`/documents/${document.id}/amend`, "POST", formData, true);
+      const response = await apiCall(
+        `/documents/${document.id}/amend`,
+        "POST",
+        formData,
+        true
+      );
+      toast.success(response.message || "Action successful!", { id: toastId });
 
-      toast.success("New version submitted successfully!", { id: toastId });
-      // --- THE FIX: Call the generic success handler to refresh the page ---
-      onActionSuccess();
+      if (response.new_document_id) {
+        onAmendSuccess(response.new_document_id); // Navigate to new major version
+      } else {
+        onActionSuccess(); // Refresh current page for minor revision
+      }
       handleClose();
     } catch (err) {
       toast.error(`Error: ${err.message}`, { id: toastId });
@@ -63,7 +75,6 @@ function AmendModal({ isOpen, onClose, document, onActionSuccess }) {
             You are submitting a new version for:{" "}
             <strong>{document.filename}</strong>
           </p>
-
           <div className="mt-4 space-y-4">
             <div>
               <label
@@ -95,7 +106,6 @@ function AmendModal({ isOpen, onClose, document, onActionSuccess }) {
               />
             </div>
           </div>
-
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleAmend}

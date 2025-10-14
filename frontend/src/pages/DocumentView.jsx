@@ -150,6 +150,7 @@ function DocumentView() {
         onClose={closeModal}
         document={document}
         onActionSuccess={handleActionSuccess}
+        onAmendSuccess={handleAmendSuccess} // For navigation
       />
     </>
   );
