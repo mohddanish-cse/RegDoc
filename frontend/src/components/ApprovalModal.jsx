@@ -14,13 +14,11 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       toast.error("A comment is required to reject the document.");
       return;
     }
-
     setIsSubmitting(true);
-    const toastId = toast.loading(`Submitting final decision: ${decision}...`);
-
+    const toastId = toast.loading("Submitting final decision...");
     try {
-      // --- THE FIX: Call the new, correct backend endpoint ---
-      await apiCall(`/documents/${document.id}/final-approval`, "POST", {
+      // --- THE FIX: Call the new generic /review endpoint ---
+      await apiCall(`/documents/${document.id}/review`, "POST", {
         decision,
         comment,
       });
@@ -29,7 +27,6 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       handleClose();
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`, { id: toastId });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -38,7 +35,6 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
     setComment("");
     onClose();
   };
-
   if (!isOpen || !document) return null;
 
   return (
@@ -48,24 +44,19 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       className="relative z-50"
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-xl font-bold text-gray-900">
+          <Dialog.Title className="text-xl font-bold">
             Perform Final Approval
           </Dialog.Title>
           <p className="text-sm text-gray-600 mt-1">
             Document: {document.filename}
           </p>
-
           <div className="mt-4">
-            <label
-              htmlFor="approval-comment"
-              className="block text-sm font-medium text-gray-700"
-            >
+            <label className="block text-sm font-medium">
               Comments (Required if rejecting)
             </label>
             <textarea
-              id="approval-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
@@ -73,26 +64,25 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
               disabled={isSubmitting}
             />
           </div>
-
-          <div className="mt-6 flex gap-4 justify-end">
+          <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={handleClose}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm"
+              className="px-4 py-2 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
             >
               Cancel
             </button>
             <button
               onClick={() => handleSubmit("Rejected")}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
               Reject
             </button>
             <button
               onClick={() => handleSubmit("Approved")}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
             >
               Approve and Sign
             </button>
@@ -102,5 +92,4 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
     </Dialog>
   );
 }
-
 export default ApprovalModal;

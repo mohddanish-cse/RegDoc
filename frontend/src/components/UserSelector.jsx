@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { apiCall } from "../utils/api";
 
 function UserSelector({
+  stageName,
   roleName,
   selectedUsers,
   onSelectionChange,
@@ -12,28 +13,37 @@ function UserSelector({
 }) {
   const [allUsers, setAllUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Default to false
   const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchUsers = async () => {
+      // --- THE FIX: This "Guard Clause" is the key to the solution ---
+      // If roleName is not a valid string, do nothing.
+      // This prevents the API call to "/users-by-role/undefined".
+      if (!roleName) {
+        setAllUsers([]); // Ensure the list is empty
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
+        setError(""); // Reset error on new fetch
         const data = await apiCall(`/user/users-by-role/${roleName}`);
         setAllUsers(data);
       } catch (err) {
-        setError(`Could not fetch ${roleName}s`);
+        setError(`Could not fetch users for role: ${roleName}`);
+        console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
     fetchUsers();
-  }, [roleName]);
+  }, [roleName]); // This effect correctly depends only on the roleName
 
   const handleSelect = (user) => {
-    // --- THE FIX: Always pass the full user object back to the parent ---
     if (isSingleSelect) {
-      // For single select, send an array with just the one user object.
       onSelectionChange([user]);
     } else {
       const isSelected = selectedUsers.some((u) => u.id === user.id);
@@ -43,7 +53,6 @@ function UserSelector({
         onSelectionChange([...selectedUsers, user]);
       }
     }
-    // After selection, clear the search term to hide the dropdown
     setSearchTerm("");
   };
 
@@ -51,35 +60,29 @@ function UserSelector({
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // --- THE FIX: This logic is now simpler and consistent ---
-  // It always expects `selectedUsers` to be an array of user objects.
   const getSelectedUsernames = () => {
-    if (!selectedUsers || selectedUsers.length === 0) {
-      return "None selected";
-    }
+    if (!selectedUsers || selectedUsers.length === 0) return "None selected";
     return selectedUsers.map((u) => u.username).join(", ");
   };
-
-  if (isLoading) return <p className="text-sm">Loading {roleName}s...</p>;
-  if (error) return <p className="text-sm text-red-500">{error}</p>;
 
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700">
-        Assign {roleName}
-        {isSingleSelect ? "" : "s"}
+        {stageName}
       </label>
       <div className="mt-1 relative">
         <input
           type="text"
-          placeholder={`Search for a ${roleName}...`}
+          placeholder={`Search for a user with role '${roleName}'...`}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          disabled={disabled}
+          disabled={disabled || isLoading}
           className="w-full rounded-md border-gray-300 shadow-sm"
         />
-        {/* Only show the dropdown if the user is typing */}
-        {searchTerm && (
+        {isLoading && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+
+        {searchTerm && !isLoading && (
           <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
             {filteredUsers.length > 0 ? (
               filteredUsers.map((user) => (
@@ -92,7 +95,7 @@ function UserSelector({
                     type={isSingleSelect ? "radio" : "checkbox"}
                     readOnly
                     checked={selectedUsers.some((u) => u.id === user.id)}
-                    className="mr-2 h-4 w-4 text-blue-600 border-gray-300"
+                    className="mr-2 h-4 w-4"
                   />
                   {user.username}
                 </div>
@@ -109,5 +112,4 @@ function UserSelector({
     </div>
   );
 }
-
 export default UserSelector;

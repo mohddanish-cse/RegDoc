@@ -11,7 +11,6 @@ from bson.errors import InvalidId
 document_read_blueprint = Blueprint('document_read', __name__)
 fs = gridfs.GridFS(db)
 
-# --- CORRECTED: List All Documents (from 'documents' collection) ---
 @document_read_blueprint.route("/", methods=['GET'])
 @jwt_required()
 def list_documents():

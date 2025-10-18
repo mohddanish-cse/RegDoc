@@ -16,16 +16,15 @@ function AmendModal({
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFileChange = (event) => setSelectedFile(event.target.files[0]);
+  const handleFileChange = (e) => setSelectedFile(e.target.files[0]);
 
   const handleAmend = async () => {
     if (!selectedFile) {
-      toast.error("Please select a new version of the file.");
+      toast.error("Please select a new file.");
       return;
     }
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting new version...");
-
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("comment", comment);
@@ -40,9 +39,9 @@ function AmendModal({
       toast.success(response.message || "Action successful!", { id: toastId });
 
       if (response.new_document_id) {
-        onAmendSuccess(response.new_document_id); // Navigate to new major version
+        onAmendSuccess(response.new_document_id);
       } else {
-        onActionSuccess(); // Refresh current page for minor revision
+        onActionSuccess();
       }
       handleClose();
     } catch (err) {
@@ -56,7 +55,6 @@ function AmendModal({
     setComment("");
     onClose();
   };
-
   if (!isOpen || !document) return null;
 
   return (
@@ -66,9 +64,9 @@ function AmendModal({
       className="relative z-50"
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-lg font-bold text-gray-900">
+          <Dialog.Title className="text-lg font-bold">
             Amend Document
           </Dialog.Title>
           <p className="mt-2 text-sm text-gray-600">
@@ -77,28 +75,20 @@ function AmendModal({
           </p>
           <div className="mt-4 space-y-4">
             <div>
-              <label
-                htmlFor="amend-file-upload"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label className="block text-sm font-medium">
                 New Document File
               </label>
               <input
-                id="amend-file-upload"
                 type="file"
                 onChange={handleFileChange}
                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0"
               />
             </div>
             <div>
-              <label
-                htmlFor="amend-comment"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label className="block text-sm font-medium">
                 Comment (Optional)
               </label>
               <textarea
-                id="amend-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={2}
@@ -106,20 +96,20 @@ function AmendModal({
               />
             </div>
           </div>
-          <div className="mt-6 flex gap-4">
-            <button
-              onClick={handleAmend}
-              disabled={isSubmitting || !selectedFile}
-              className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isSubmitting ? "Submitting..." : "Submit New Version"}
-            </button>
+          <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={handleClose}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-300"
+              className="px-4 py-2 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleAmend}
+              disabled={isSubmitting || !selectedFile}
+              className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSubmitting ? "Submitting..." : "Submit New Version"}
             </button>
           </div>
         </Dialog.Panel>
@@ -127,5 +117,4 @@ function AmendModal({
     </Dialog>
   );
 }
-
 export default AmendModal;

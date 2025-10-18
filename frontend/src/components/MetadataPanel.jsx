@@ -1,13 +1,22 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
+import { apiCall } from "../utils/api"; // <-- Import apiCall
+import toast from "react-hot-toast";
+
+const formatVersion = (doc) => {
+  if (!doc) return "";
+  if (doc.status === "Approved") {
+    return `v${doc.major_version}.0`;
+  }
+  return `v${doc.major_version}.${doc.minor_version}`;
+};
 
 function MetadataPanel({ document, versionHistory }) {
   const [isCopied, setIsCopied] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  if (!document) {
-    return null; // Don't render anything if there's no document
-  }
+  if (!document) return null;
 
   const handleCopyToClipboard = async (text) => {
     try {
@@ -22,15 +31,34 @@ function MetadataPanel({ document, versionHistory }) {
     }
   };
 
+  const handleVerifySignature = async () => {
+    setIsVerifying(true);
+    const toastId = toast.loading("Verifying signature...");
+
+    try {
+      const response = await apiCall(
+        `/documents/${document.id}/verify-signature`,
+        "POST"
+      );
+      if (response.verified) {
+        toast.success("Success! The signature is valid.", { id: toastId });
+      } else {
+        // This case handles a signature that is invalid, which is a specific type of failure
+        toast.error("Verification Failed: The signature is NOT valid.", {
+          id: toastId,
+        });
+      }
+    } catch (err) {
+      // This case handles network errors or backend crashes
+      toast.error(`Verification Error: ${err.message}`, { id: toastId });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   return (
     <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
       <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
-      {/* <div className="mb-4">
-        <p className="text-sm font-medium text-gray-500">Document Number</p>
-        <p className="text-lg font-semibold text-gray-800">
-          {document.document_number}
-        </p>
-      </div> */}
 
       <div className="flex items-center gap-2 mb-4">
         <p className="text-lg font-mono text-gray-500">
@@ -67,11 +95,23 @@ function MetadataPanel({ document, versionHistory }) {
 
       {document.signature && (
         <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
-          <p className="font-bold text-green-800">Digitally Signed</p>
-          <p className="text-sm text-green-700">
-            by {document.signed_by_username} on{" "}
-            {new Date(document.signed_at).toLocaleString()}
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="font-bold text-green-800">Digitally Signed</p>
+              <p className="text-sm text-green-700">
+                by {document.signed_by_username} on{" "}
+                {new Date(document.signed_at).toLocaleString()}
+              </p>
+            </div>
+            <button
+              onClick={handleVerifySignature}
+              disabled={isVerifying}
+              className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-md hover:bg-green-300 disabled:opacity-50 disabled:cursor-wait"
+              title="Re-verify the signature against the document content"
+            >
+              {isVerifying ? "Verifying..." : "Verify"}
+            </button>
+          </div>
         </div>
       )}
 

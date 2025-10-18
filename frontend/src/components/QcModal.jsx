@@ -14,21 +14,19 @@ function QcModal({ isOpen, onClose, document, onActionSuccess }) {
       toast.error("A comment is required to fail a QC check.");
       return;
     }
-
     setIsSubmitting(true);
-    const toastId = toast.loading(`Submitting QC decision: ${decision}...`);
-
+    const toastId = toast.loading("Submitting QC decision...");
     try {
-      await apiCall(`/documents/${document.id}/qc-review`, "POST", {
+      // --- THE FIX: Call the new generic /review endpoint ---
+      await apiCall(`/documents/${document.id}/review`, "POST", {
         decision,
         comment,
       });
-      toast.success("QC decision submitted successfully!", { id: toastId });
+      toast.success("QC decision submitted!", { id: toastId });
       onActionSuccess();
       handleClose();
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`, { id: toastId });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -37,7 +35,6 @@ function QcModal({ isOpen, onClose, document, onActionSuccess }) {
     setComment("");
     onClose();
   };
-
   if (!isOpen || !document) return null;
 
   return (
@@ -47,24 +44,19 @@ function QcModal({ isOpen, onClose, document, onActionSuccess }) {
       className="relative z-50"
     >
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-xl font-bold text-gray-900">
+          <Dialog.Title className="text-xl font-bold">
             Perform Quality Control Check
           </Dialog.Title>
           <p className="text-sm text-gray-600 mt-1">
             Document: {document.filename}
           </p>
-
           <div className="mt-4">
-            <label
-              htmlFor="qc-comment"
-              className="block text-sm font-medium text-gray-700"
-            >
+            <label className="block text-sm font-medium">
               Comments (Required if failing)
             </label>
             <textarea
-              id="qc-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
@@ -72,28 +64,27 @@ function QcModal({ isOpen, onClose, document, onActionSuccess }) {
               disabled={isSubmitting}
             />
           </div>
-
-          <div className="mt-6 flex gap-4">
+          <div className="mt-6 flex justify-end gap-3">
             <button
-              onClick={() => handleSubmit("Pass")}
+              onClick={handleClose}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
             >
-              Pass QC
+              Cancel
             </button>
             <button
               onClick={() => handleSubmit("Fail")}
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
               Fail QC
             </button>
             <button
-              onClick={handleClose}
+              onClick={() => handleSubmit("Pass")}
               disabled={isSubmitting}
-              className="ml-auto inline-flex items-center justify-center rounded-md bg-gray-200 px-4 py-2 text-sm"
+              className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
             >
-              Cancel
+              Pass QC
             </button>
           </div>
         </Dialog.Panel>
@@ -101,5 +92,4 @@ function QcModal({ isOpen, onClose, document, onActionSuccess }) {
     </Dialog>
   );
 }
-
 export default QcModal;

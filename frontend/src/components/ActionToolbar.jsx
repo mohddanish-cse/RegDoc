@@ -12,13 +12,11 @@ function ActionToolbar({
   onOpenAmendModal,
 }) {
   if (!document || !user) return null;
-
   const { status } = document;
   const { role } = user;
   const isAuthor = user.id === document.author_id;
 
   const getAction = () => {
-    // Author actions
     if (isAuthor && status === "Draft") {
       return (
         <button
@@ -29,18 +27,19 @@ function ActionToolbar({
         </button>
       );
     }
-    if (isAuthor && (status === "Rejected" || status === "Changes Requested")) {
+    if (
+      isAuthor &&
+      ["Rejected", "Changes Requested", "Approved"].includes(status)
+    ) {
       return (
         <button
           onClick={onOpenAmendModal}
-          className="w-full sm:w-auto bg-yellow-500 text-white font-semibold px-4 py-2 rounded-md hover:bg-yellow-600"
+          className="w-full sm:w-auto bg-yellow-500 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-600"
         >
           Amend and Resubmit
         </button>
       );
     }
-
-    // QC action
     if ((role === "QC" || role === "Admin") && status === "In QC") {
       return (
         <button
@@ -51,8 +50,6 @@ function ActionToolbar({
         </button>
       );
     }
-
-    // Reviewer action
     if ((role === "Reviewer" || role === "Admin") && status === "In Review") {
       return (
         <button
@@ -63,8 +60,6 @@ function ActionToolbar({
         </button>
       );
     }
-
-    // --- THE FIX: Action for Approver Role ---
     if (
       (role === "Approver" || role === "Admin") &&
       status === "Review Complete"
@@ -78,7 +73,6 @@ function ActionToolbar({
         </button>
       );
     }
-
     return (
       <p className="text-sm text-gray-500">
         No actions available for you at this time.

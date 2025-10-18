@@ -9,7 +9,7 @@ import UserSelector from "./UserSelector";
 function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [templates, setTemplates] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [assignments, setAssignments] = useState({});
 
   useEffect(() => {
@@ -19,13 +19,7 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
           const data = await apiCall("/workflow-templates");
           setTemplates(data);
           if (data.length > 0) {
-            const template = data[0];
-            setSelectedTemplate(template);
-            const initialAssignments = {};
-            template.stages.forEach((stage) => {
-              initialAssignments[stage.role_required] = [];
-            });
-            setAssignments(initialAssignments);
+            handleTemplateChange(data[0].id, data);
           }
         } catch (err) {
           toast.error("Could not fetch workflow templates.");
@@ -35,23 +29,30 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
     }
   }, [isOpen]);
 
-  const handleSelectionChange = (role, users) => {
-    setAssignments((prev) => ({ ...prev, [role]: users }));
+  const handleTemplateChange = (templateId, allTemplates = templates) => {
+    setSelectedTemplateId(templateId);
+    const template = allTemplates.find((t) => t.id === templateId);
+    if (template) {
+      const initialAssignments = {};
+      template.stages.forEach((stage) => {
+        initialAssignments[stage.role_required] = [];
+      });
+      setAssignments(initialAssignments);
+    }
   };
 
   const handleSubmit = async () => {
+    const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
     if (!selectedTemplate) {
       toast.error("Please select a workflow template.");
       return;
     }
 
     const assignmentIds = Object.keys(assignments).reduce((acc, role) => {
-      // This logic now works correctly for all roles
       acc[role] = assignments[role].map((user) => user.id);
       return acc;
     }, {});
 
-    // Validation to ensure all stages have assignments
     for (const stage of selectedTemplate.stages) {
       if (
         !assignmentIds[stage.role_required] ||
@@ -66,7 +67,6 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
 
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting workflow...");
-
     const payload = {
       template_id: selectedTemplate.id,
       assignments: assignmentIds,
@@ -79,18 +79,17 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
       handleClose();
     } catch (err) {
       toast.error(`Submission failed: ${err.message}`, { id: toastId });
-    } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
-    setSelectedTemplate(null);
+    setSelectedTemplateId("");
     setAssignments({});
     onClose();
   };
-
   if (!isOpen || !document) return null;
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
   return (
     <Dialog
@@ -106,7 +105,6 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
             <span className="text-primary">{document.filename}</span>
           </Dialog.Title>
 
-          {/* --- THE FIX: Increased max-height from 60vh to 75vh --- */}
           <div className="mt-4 space-y-4 max-h-[75vh] overflow-y-auto pr-2">
             <div>
               <label className="block text-sm font-medium text-gray-700">
@@ -114,7 +112,9 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
               </label>
               <select
                 className="mt-1 block w-full rounded-md border-gray-300"
-                disabled={templates.length === 0}
+                value={selectedTemplateId}
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                disabled={templates.length === 0 || isSubmitting}
               >
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -127,11 +127,15 @@ function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
             {selectedTemplate &&
               selectedTemplate.stages.map((stage) => (
                 <UserSelector
-                  key={stage.stage_number}
+                  key={`${selectedTemplate.id}-${stage.stage_number}`}
+                  stageName={stage.stage_name}
                   roleName={stage.role_required}
                   selectedUsers={assignments[stage.role_required] || []}
                   onSelectionChange={(users) =>
-                    handleSelectionChange(stage.role_required, users)
+                    setAssignments((prev) => ({
+                      ...prev,
+                      [stage.role_required]: users,
+                    }))
                   }
                   isSingleSelect={stage.role_required === "Approver"}
                   disabled={isSubmitting}
