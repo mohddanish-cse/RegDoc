@@ -11,6 +11,7 @@ import { apiCall } from "../utils/api";
 import PdfViewer from "../components/PdfViewer";
 
 import ActionToolbar from "../components/ActionToolbar";
+import QcModal from "../components/QcModal"; // ✅ ADD THIS
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 import SubmitModal from "../components/SubmitModal";
@@ -28,6 +29,7 @@ function DocumentView() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isQcModalOpen, setIsQcModalOpen] = useState(false); // ✅ ADD THIS
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
@@ -56,13 +58,10 @@ function DocumentView() {
 
   const closeModal = () => {
     setIsSubmitModalOpen(false);
+    setIsQcModalOpen(false); // ✅ ADD THIS
     setIsReviewModalOpen(false);
     setIsApprovalModalOpen(false);
     setIsAmendModalOpen(false);
-  };
-
-  const openSubmitModal = () => {
-    setIsSubmitModalOpen(true);
   };
 
   const handleActionSuccess = () => {
@@ -97,7 +96,8 @@ function DocumentView() {
         <ActionToolbar
           document={document}
           user={currentUser}
-          onOpenSubmitModal={openSubmitModal}
+          onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
+          onOpenQcModal={() => setIsQcModalOpen(true)} // ✅ ADD THIS
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
           onOpenAmendModal={() => setIsAmendModalOpen(true)}
@@ -114,12 +114,21 @@ function DocumentView() {
         </div>
       </div>
 
+      {/* ✅ ADD QC MODAL HERE */}
+      <QcModal
+        isOpen={isQcModalOpen}
+        onClose={closeModal}
+        document={document}
+        onQcSuccess={handleActionSuccess}
+      />
+
       <ReviewModal
         isOpen={isReviewModalOpen}
         onClose={closeModal}
         document={document}
         onReviewSuccess={handleActionSuccess}
       />
+
       <ApprovalModal
         isOpen={isApprovalModalOpen}
         onClose={closeModal}

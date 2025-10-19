@@ -36,7 +36,7 @@ def create_app():
     app.register_blueprint(auth_blueprint, url_prefix='/api/auth')
 
     from .user import user_blueprint
-    app.register_blueprint(user_blueprint, url_prefix='/api/user')
+    app.register_blueprint(user_blueprint, url_prefix='/api/users')
 
     from .document_routes import document_blueprint
     app.register_blueprint(document_blueprint, url_prefix='/api/documents')

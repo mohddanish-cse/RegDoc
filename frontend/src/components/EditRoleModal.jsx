@@ -30,7 +30,7 @@ function EditRoleModal({ isOpen, onClose, user, onUpdateSuccess }) {
     try {
       // The API path is constructed using `user.id` from the props,
       // which matches the '/<user_id>/role' structure in your backend.
-      await apiCall(`/user/${user.id}/role`, "PUT", { role: selectedRole });
+      await apiCall(`/users/${user.id}/role`, "PUT", { role: selectedRole });
       toast.success("Role updated successfully!", { id: toastId });
       onUpdateSuccess(); // This calls the function in UserManagementPage to refresh the data
     } catch (err) {

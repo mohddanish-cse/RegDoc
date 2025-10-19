@@ -14,7 +14,7 @@ function UserManagementPage() {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const data = await apiCall("/user/all");
+      const data = await apiCall("/users/all");
       setUsers(data);
     } catch (err) {
       setError(err.message);

@@ -26,9 +26,7 @@ def get_profile():
     else:
         return jsonify({"error": "User not found"}), 404
 
-# --- MODIFIED: This route replaces the old '/reviewers' endpoint ---
-# It is now flexible and can fetch users for any role (QC, Reviewer, Approver).
-# This is the endpoint that your frontend is correctly trying to call.
+
 @user_blueprint.route("/users-by-role/<role_name>", methods=['GET'])
 @jwt_required()
 def get_users_by_role(role_name):
@@ -66,7 +64,6 @@ def get_all_users_admin():
     except Exception as e:
         return jsonify({"error": "An internal server error occurred"}), 500
 
-# --- update_user_role route (unchanged) ---
 @user_blueprint.route("/<user_id>/role", methods=['PUT'])
 @jwt_required()
 @admin_required()

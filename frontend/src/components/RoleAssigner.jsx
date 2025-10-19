@@ -15,7 +15,7 @@ function RoleAssigner({
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const data = await apiCall(`/user/users-by-role/${roleName}`);
+        const data = await apiCall(`/users/users-by-role/${roleName}`);
         setAvailableUsers(data);
       } catch (err) {
         setError(`Could not fetch users for role: ${roleName}`);

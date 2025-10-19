@@ -14,7 +14,7 @@ function App() {
       const token = localStorage.getItem("token");
       if (token) {
         try {
-          const userData = await apiCall("/user/profile");
+          const userData = await apiCall("/users/profile");
           setUser(userData);
         } catch (error) {
           console.error("Token is invalid, logging out.", error);

@@ -30,7 +30,7 @@ function UserSelector({
       try {
         setIsLoading(true);
         setError(""); // Reset error on new fetch
-        const data = await apiCall(`/user/users-by-role/${roleName}`);
+        const data = await apiCall(`/users/users-by-role/${roleName}`);
         setAllUsers(data);
       } catch (err) {
         setError(`Could not fetch users for role: ${roleName}`);
