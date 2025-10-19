@@ -9,7 +9,7 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // --- NEW: State to manage TMF metadata form fields ---
+  // TMF metadata fields
   const [studyId, setStudyId] = useState("");
   const [country, setCountry] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -25,15 +25,23 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
   };
 
   const handleUpload = async () => {
+    // Validate file selection
     if (!file) {
       toast.error("Please select a file to upload.");
       return;
     }
+
+    // ✅ MANDATORY FIELD VALIDATION (except Country & Site ID)
+    if (!studyId || !tmfZone || !tmfSection || !tmfArtifact) {
+      toast.error(
+        "Please fill all required fields (Study ID, TMF Zone, Section, and Artifact)."
+      );
+      return;
+    }
+
     setIsUploading(true);
     const toastId = toast.loading("Uploading document...");
 
-    // --- UPDATED: Use FormData to send file and metadata ---
-    // FormData is the standard way to send files along with other text data.
     const formData = new FormData();
     formData.append("file", file);
     formData.append("study_id", studyId);
@@ -45,20 +53,18 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
     formData.append("comment", comment);
 
     try {
-      // The apiCall function needs to be able to handle FormData.
-      // We assume your api.js is set up for this. If not, we may need to adjust it.
       const response = await apiCall(
         "/documents/upload",
         "POST",
         formData,
         true
-      ); // `true` indicates a multipart/form-data request
+      );
 
       toast.success(`Document ${response.doc_number} uploaded successfully!`, {
         id: toastId,
       });
-      onUploadSuccess(); // This will refresh the main document list
-      handleClose(); // Close and reset the modal
+      onUploadSuccess();
+      handleClose();
     } catch (err) {
       toast.error(`Upload failed: ${err.message}`, { id: toastId });
     } finally {
@@ -66,7 +72,6 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
     }
   };
 
-  // Resets all fields when the modal is closed
   const handleClose = () => {
     setFile(null);
     setStudyId("");
@@ -88,13 +93,13 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
             Upload New TMF Document
           </Dialog.Title>
           <div className="mt-4 space-y-4">
-            {/* --- File Input --- */}
+            {/* File Input */}
             <div>
               <label
                 htmlFor="file-upload"
                 className="block text-sm font-medium text-gray-700"
               >
-                Document File
+                Document File *
               </label>
               <input
                 id="file-upload"
@@ -102,10 +107,11 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
                 onChange={handleFileChange}
                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                 disabled={isUploading}
+                required
               />
             </div>
 
-            {/* --- NEW: TMF Form Fields --- */}
+            {/* TMF Metadata Fields */}
             <fieldset className="border p-4 rounded-md">
               <legend className="text-sm font-semibold text-gray-700 px-2">
                 TMF Metadata
@@ -116,41 +122,47 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
                   value={studyId}
                   onChange={setStudyId}
                   disabled={isUploading}
+                  required={true}
                 />
                 <InputField
                   label="Country"
                   value={country}
                   onChange={setCountry}
                   disabled={isUploading}
+                  required={false}
                 />
                 <InputField
                   label="Site ID"
                   value={siteId}
                   onChange={setSiteId}
                   disabled={isUploading}
+                  required={false}
                 />
                 <InputField
                   label="TMF Zone"
                   value={tmfZone}
                   onChange={setTmfZone}
                   disabled={isUploading}
+                  required={true}
                 />
                 <InputField
                   label="TMF Section"
                   value={tmfSection}
                   onChange={setTmfSection}
                   disabled={isUploading}
+                  required={true}
                 />
                 <InputField
                   label="TMF Artifact"
                   value={tmfArtifact}
                   onChange={setTmfArtifact}
                   disabled={isUploading}
+                  required={true}
                 />
               </div>
             </fieldset>
 
-            {/* --- Comment Field --- */}
+            {/* Comment Field */}
             <div>
               <label
                 htmlFor="comment"
@@ -191,15 +203,18 @@ function UploadModal({ isOpen, onClose, onUploadSuccess }) {
   );
 }
 
-// --- NEW: Helper component for form fields to keep the main component clean ---
-const InputField = ({ label, value, onChange, disabled }) => (
+// ✅ Updated InputField with asterisk (*) for required fields
+const InputField = ({ label, value, onChange, disabled, required }) => (
   <div>
-    <label className="block text-sm font-medium text-gray-700">{label}</label>
+    <label className="block text-sm font-medium text-gray-700">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
     <input
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
+      required={required}
       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-800 focus:ring-gray-800 sm:text-sm"
     />
   </div>

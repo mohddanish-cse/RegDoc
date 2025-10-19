@@ -22,7 +22,6 @@ function MetadataPanel({ document, versionHistory }) {
     try {
       await navigator.clipboard.writeText(text);
       setIsCopied(true);
-      // Reset the "Copied!" message after 2 seconds
       setTimeout(() => {
         setIsCopied(false);
       }, 2000);
@@ -137,6 +136,62 @@ function MetadataPanel({ document, versionHistory }) {
           </p>
         </div>
       </div>
+
+      {document.tmf_metadata && (
+        <>
+          <h3 className="text-xl font-bold mt-6 mb-3 border-t pt-4">
+            TMF Metadata
+          </h3>
+          <div className="space-y-3 bg-gray-50 p-4 rounded-md">
+            {document.tmf_metadata.study_id && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">Study ID</p>
+                <p className="text-gray-800">
+                  {document.tmf_metadata.study_id}
+                </p>
+              </div>
+            )}
+            {document.tmf_metadata.country && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">Country</p>
+                <p className="text-gray-800">{document.tmf_metadata.country}</p>
+              </div>
+            )}
+            {document.tmf_metadata.site_id && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">Site ID</p>
+                <p className="text-gray-800">{document.tmf_metadata.site_id}</p>
+              </div>
+            )}
+            {document.tmf_metadata.tmf_zone && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">TMF Zone</p>
+                <p className="text-gray-800">
+                  {document.tmf_metadata.tmf_zone}
+                </p>
+              </div>
+            )}
+            {document.tmf_metadata.tmf_section && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">TMF Section</p>
+                <p className="text-gray-800">
+                  {document.tmf_metadata.tmf_section}
+                </p>
+              </div>
+            )}
+            {document.tmf_metadata.tmf_artifact && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">
+                  TMF Artifact
+                </p>
+                <p className="text-gray-800">
+                  {document.tmf_metadata.tmf_artifact}
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Version History Section */}
       <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">

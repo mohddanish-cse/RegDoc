@@ -84,11 +84,11 @@ def get_document_details(doc_id):
             "version": f"{doc_metadata.get('major_version')}.{doc_metadata.get('minor_version')}",
             "author": doc_metadata.get('author_username', 'Unknown'),
             "author_id": str(doc_metadata.get('author_id')),
-            "lineage_id": doc_metadata.get('lineage_id')
+            "lineage_id": doc_metadata.get('lineage_id'),
+            "tmf_metadata": doc_metadata.get('tmf_metadata', {})
+
         }
         
-        # --- THE FIX IS HERE ---
-        # If the document has a signature, add the signature details to the response.
         if 'signature' in doc_metadata:
             response_data['signature'] = doc_metadata.get('signature')
             response_data['signed_at'] = doc_metadata.get('signed_at').isoformat()
