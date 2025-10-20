@@ -11,10 +11,12 @@ import { apiCall } from "../utils/api";
 import PdfViewer from "../components/PdfViewer";
 
 import ActionToolbar from "../components/ActionToolbar";
-import QcModal from "../components/QcModal"; // ✅ ADD THIS
+import SubmitQcModal from "../components/SubmitQcModal";
+import QcModal from "../components/QcModal";
+import SubmitReviewModal from "../components/SubmitReviewModal";
 import ReviewModal from "../components/ReviewModal";
+import SubmitApprovalModal from "../components/SubmitApprovalModal";
 import ApprovalModal from "../components/ApprovalModal";
-import SubmitModal from "../components/SubmitModal";
 import AmendModal from "../components/AmendModal";
 import MetadataPanel from "../components/MetadataPanel";
 
@@ -28,9 +30,12 @@ function DocumentView() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [isQcModalOpen, setIsQcModalOpen] = useState(false); // ✅ ADD THIS
+  const [isSubmitQcModalOpen, setIsSubmitQcModalOpen] = useState(false);
+  const [isQcModalOpen, setIsQcModalOpen] = useState(false);
+  const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSubmitApprovalModalOpen, setIsSubmitApprovalModalOpen] =
+    useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
 
@@ -57,9 +62,11 @@ function DocumentView() {
   }, [fetchAllDocumentData]);
 
   const closeModal = () => {
-    setIsSubmitModalOpen(false);
-    setIsQcModalOpen(false); // ✅ ADD THIS
+    setIsSubmitQcModalOpen(false);
+    setIsQcModalOpen(false);
+    setIsSubmitReviewModalOpen(false);
     setIsReviewModalOpen(false);
+    setIsSubmitApprovalModalOpen(false);
     setIsApprovalModalOpen(false);
     setIsAmendModalOpen(false);
   };
@@ -94,10 +101,20 @@ function DocumentView() {
         </div>
 
         <ActionToolbar
-          document={document}
+          document={{
+            ...document,
+            id: document.id,
+            status: document.status,
+            author_id: document.author_id,
+            qc_reviewers: document.qc_reviewers || [],
+            reviewers: document.reviewers || [],
+            approver: document.approver || {},
+          }}
           user={currentUser}
-          onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
-          onOpenQcModal={() => setIsQcModalOpen(true)} // ✅ ADD THIS
+          onOpenSubmitQcModal={() => setIsSubmitQcModalOpen(true)}
+          onOpenSubmitReviewModal={() => setIsSubmitReviewModalOpen(true)}
+          onOpenSubmitApprovalModal={() => setIsSubmitApprovalModalOpen(true)}
+          onOpenQcModal={() => setIsQcModalOpen(true)}
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
           onOpenAmendModal={() => setIsAmendModalOpen(true)}
@@ -114,12 +131,25 @@ function DocumentView() {
         </div>
       </div>
 
-      {/* ✅ ADD QC MODAL HERE */}
+      <SubmitQcModal
+        isOpen={isSubmitQcModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSubmitSuccess={handleActionSuccess}
+      />
+
       <QcModal
         isOpen={isQcModalOpen}
         onClose={closeModal}
         document={document}
         onQcSuccess={handleActionSuccess}
+      />
+
+      <SubmitReviewModal
+        isOpen={isSubmitReviewModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSubmitSuccess={handleActionSuccess}
       />
 
       <ReviewModal
@@ -129,18 +159,18 @@ function DocumentView() {
         onReviewSuccess={handleActionSuccess}
       />
 
+      <SubmitApprovalModal
+        isOpen={isSubmitApprovalModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSubmitSuccess={handleActionSuccess}
+      />
+
       <ApprovalModal
         isOpen={isApprovalModalOpen}
         onClose={closeModal}
         document={document}
         onApprovalSuccess={handleActionSuccess}
-      />
-
-      <SubmitModal
-        isOpen={isSubmitModalOpen}
-        onClose={closeModal}
-        document={document}
-        onSubmitSuccess={handleActionSuccess}
       />
 
       <AmendModal

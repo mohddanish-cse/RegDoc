@@ -11,13 +11,16 @@ from bson.errors import InvalidId
 document_read_blueprint = Blueprint('document_read', __name__)
 fs = gridfs.GridFS(db)
 
+# backend/app/document_read_routes.py - REPLACE list_documents function (line 13-53)
+
 @document_read_blueprint.route("/", methods=['GET'])
 @jwt_required()
 def list_documents():
     try:
         user_id_obj = ObjectId(get_jwt_identity())
         user = db.users.find_one({'_id': user_id_obj})
-        if not user: return jsonify({"error": "User not found"}), 404
+        if not user: 
+            return jsonify({"error": "User not found"}), 404
         
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 10))
@@ -46,13 +49,19 @@ def list_documents():
         documents_list = []
         for doc in documents_cursor:
             active_rev = doc.get('revisions', [])[doc.get('active_revision', 0)]
+            
+            # Get author username if not present
+            author_username = doc.get('author_username')
+            if not author_username:
+                author = db.users.find_one({'_id': doc.get('author_id')})
+                author_username = author['username'] if author else 'Unknown'
+            
             documents_list.append({
                 'id': str(doc.get('_id')),
-                # --- FIX: Changed 'doc_number' back to 'document_number' to match frontend ---
-                'document_number': doc.get('doc_number'),
-                'filename': active_rev.get('filename'),
-                'status': doc.get('status'),
-                'author': doc.get('author_username', 'Unknown')
+                'doc_number': doc.get('doc_number', 'N/A'),  # ✅ CHANGED from document_number
+                'filename': active_rev.get('filename', 'Unknown'),
+                'status': doc.get('status', 'Draft'),
+                'author_username': author_username  # ✅ CHANGED from author
             })
 
         return jsonify({
@@ -60,9 +69,14 @@ def list_documents():
             'totalPages': (total_documents + limit - 1) // limit,
             'currentPage': page
         }), 200
+        
     except Exception as e:
         print(f"Error in list_documents: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "An internal server error occurred"}), 500
+
+# backend/app/document_read_routes.py
 
 @document_read_blueprint.route("/<doc_id>", methods=['GET'])
 @jwt_required()
@@ -77,24 +91,57 @@ def get_document_details(doc_id):
 
         response_data = {
             "id": str(doc_metadata.get('_id')),
-            "document_number": doc_metadata.get('doc_number'),
+            "doc_number": doc_metadata.get('doc_number'),
             "filename": active_rev.get('filename'),
             "uploadDate": doc_metadata.get('created_at').isoformat(),
             "status": doc_metadata.get('status'),
             "version": f"{doc_metadata.get('major_version')}.{doc_metadata.get('minor_version')}",
-            "author": doc_metadata.get('author_username', 'Unknown'),
+            "major_version": doc_metadata.get('major_version'),
+            "minor_version": doc_metadata.get('minor_version'),
+            "author_username": doc_metadata.get('author_username', 'Unknown'),
             "author_id": str(doc_metadata.get('author_id')),
             "lineage_id": doc_metadata.get('lineage_id'),
-            "tmf_metadata": doc_metadata.get('tmf_metadata', {})
-
+            "tmf_metadata": doc_metadata.get('tmf_metadata', {}),
+            "current_stage": doc_metadata.get('current_stage')
         }
+        
+        # Convert workflow data
+        if 'qc_reviewers' in doc_metadata:
+            qc_reviewers = []
+            for reviewer in doc_metadata['qc_reviewers']:
+                qc_reviewers.append({
+                    'user_id': str(reviewer['user_id']),
+                    'status': reviewer['status'],
+                    'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
+                    'comment': reviewer.get('comment', '')
+                })
+            response_data['qc_reviewers'] = qc_reviewers
+        
+        if 'reviewers' in doc_metadata:
+            reviewers = []
+            for reviewer in doc_metadata['reviewers']:
+                reviewers.append({
+                    'user_id': str(reviewer['user_id']),
+                    'status': reviewer['status'],
+                    'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
+                    'comment': reviewer.get('comment', '')
+                })
+            response_data['reviewers'] = reviewers
+        
+        if 'approver' in doc_metadata and doc_metadata['approver']:
+            response_data['approver'] = {
+                'user_id': str(doc_metadata['approver']['user_id']),
+                'status': doc_metadata['approver']['status'],
+                'approved_at': doc_metadata['approver']['approved_at'].isoformat() if doc_metadata['approver'].get('approved_at') else None,
+                'comment': doc_metadata['approver'].get('comment', '')
+            }
         
         if 'signature' in doc_metadata:
             response_data['signature'] = doc_metadata.get('signature')
             response_data['signed_at'] = doc_metadata.get('signed_at').isoformat()
             response_data['signed_by_username'] = doc_metadata.get('signed_by_username', 'Unknown')
 
-        # Process history (This part is unchanged)
+        # Process history
         history_list = []
         for entry in doc_metadata.get('history', []):
             history_list.append({
@@ -106,11 +153,15 @@ def get_document_details(doc_id):
         response_data['history'] = history_list
 
         return jsonify(response_data), 200
+        
     except InvalidId:
         return jsonify({"error": "Invalid document ID format"}), 400
     except Exception as e:
         print(f"An error occurred in get_document_details: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "An internal server error occurred"}), 500
+
     
 @document_read_blueprint.route("/<doc_id>/preview", methods=['GET'])
 @jwt_required()
@@ -135,55 +186,6 @@ def preview_document(doc_id):
     except (InvalidId, IndexError):
         return jsonify({"error": "Invalid ID format or revision not found"}), 400
 
-
-@document_read_blueprint.route("/my-tasks", methods=['GET'])
-@jwt_required()
-def get_my_tasks():
-    try:
-        user_id_obj = ObjectId(get_jwt_identity())
-        user = db.users.find_one({'_id': user_id_obj})
-        if not user:
-            return jsonify(error="User not found"), 404
-
-        # --- NEW, MORE POWERFUL QUERY ---
-        # This query now finds any document where the user is an active, pending reviewer
-        # in the document's currently active stage.
-        pipeline = [
-            # Match documents that are in an active workflow state
-            {'$match': {'status': {'$in': ['In QC', 'In Review', 'Review Complete']}}},
-            # Unwind the workflow array to look at each stage individually
-            {'$unwind': '$workflow'},
-            # Match the stage that is the current active stage
-            {'$match': {'$expr': {'$eq': ['$workflow.stage_number', '$current_stage']}}},
-            # Unwind the reviewers array to look at each reviewer
-            {'$unwind': '$workflow.reviewers'},
-            # Find the specific task for the current user that is still pending
-            {'$match': {
-                'workflow.reviewers.user_id': user_id_obj,
-                'workflow.reviewers.status': 'Pending'
-            }},
-            # Re-group the document to its original shape if needed (optional but clean)
-            {'$group': {'_id': '$_id', 'doc': {'$first': '$$ROOT'}}},
-            {'$replaceRoot': {'newRoot': '$doc'}}
-        ]
-
-        documents_cursor = db.documents.aggregate(pipeline)
-        
-        tasks_list = []
-        for doc in documents_cursor:
-            active_rev = doc.get('revisions', [])[doc.get('active_revision', 0)]
-            tasks_list.append({
-                'id': str(doc.get('_id')),
-                'document_number': doc.get('doc_number'),
-                'filename': active_rev.get('filename'),
-                'status': doc.get('status'),
-                'author': doc.get('author_username', 'Unknown')
-            })
-        return jsonify(tasks_list), 200
-        
-    except Exception as e:
-        print(f"Error in get_my_tasks: {e}")
-        return jsonify({"error": "An internal server error occurred"}), 500
 
 @document_read_blueprint.route("/lineage/<lineage_id>", methods=['GET'])
 @jwt_required()

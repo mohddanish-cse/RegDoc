@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { apiCall } from "../utils/api";
 import DocumentTable from "../components/DocumentTable";
-import UploadModal from "../components/UploadModal"; // <-- Import the modal
+import UploadModal from "../components/UploadModal";
 import ReviewModal from "../components/ReviewModal";
 import ApprovalModal from "../components/ApprovalModal";
 
@@ -14,7 +14,6 @@ function MyTasksPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- NEW: State and logic for the Upload Modal is now co-located here ---
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -37,10 +36,9 @@ function MyTasksPage() {
     fetchTasks();
   }, []);
 
-  // --- NEW: This is the success handler that will be called by the modal ---
   const handleUploadSuccess = () => {
-    setIsUploadModalOpen(false); // Close the modal
-    fetchTasks(); // Refresh the data on this page
+    setIsUploadModalOpen(false);
+    fetchTasks();
   };
 
   const openReviewModal = (doc) => {
@@ -61,7 +59,7 @@ function MyTasksPage() {
 
   const handleActionSuccess = () => {
     closeModal();
-    fetchTasks(); // Refresh the tasks list
+    fetchTasks();
   };
 
   if (isLoading) return <p>Loading your tasks...</p>;
@@ -69,18 +67,18 @@ function MyTasksPage() {
 
   return (
     <>
-      {/* --- NEW: Page header with the Upload button --- */}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-gray-800">My Tasks</h1>
-        {(currentUser && currentUser.role === "Contributor") ||
-          ("Admin" && (
+        {currentUser &&
+          (currentUser.role === "Contributor" ||
+            currentUser.role === "Admin") && (
             <button
               onClick={() => setIsUploadModalOpen(true)}
               className="px-4 py-2 bg-gray-800 text-white font-semibold rounded-md hover:bg-gray-900 shadow-sm"
             >
               + Upload New Document
             </button>
-          ))}
+          )}
       </div>
 
       <DocumentTable
@@ -90,7 +88,6 @@ function MyTasksPage() {
         onOpenApprovalModal={openApprovalModal}
       />
 
-      {/* --- NEW: The UploadModal is now rendered here and correctly connected --- */}
       <UploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}

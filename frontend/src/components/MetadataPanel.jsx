@@ -123,7 +123,7 @@ function MetadataPanel({ document, versionHistory }) {
         </div>
         <div>
           <p className="text-sm font-medium text-gray-500">Author</p>
-          <p className="text-gray-800">{document.author}</p>
+          <p className="text-gray-900">{document.author_username}</p>
         </div>
         <div>
           <p className="text-sm font-medium text-gray-500">Version</p>

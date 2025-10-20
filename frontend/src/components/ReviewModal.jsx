@@ -6,95 +6,123 @@ import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
 function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
+  const [decision, setDecision] = useState("");
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (decision) => {
-    if (
-      ["Rejected", "ChangesRequested"].includes(decision) &&
-      !comment.trim()
-    ) {
-      toast.error("A comment is required for this decision.");
+  const handleSubmit = async () => {
+    if (!decision) {
+      toast.error("Please select a decision");
       return;
     }
+
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting review...");
+
     try {
-      // --- THE FIX: Call the new generic /review endpoint ---
-      await apiCall(`/documents/${document.id}/review`, "POST", {
-        decision,
-        comment,
+      await apiCall(`/documents/${document.id}/technical-review`, "POST", {
+        decision: decision,
+        comment: comment,
       });
-      toast.success("Review submitted successfully!", { id: toastId });
+
+      toast.success(`Review: ${decision}`, { id: toastId });
       onReviewSuccess();
       handleClose();
     } catch (err) {
-      toast.error(`Submission failed: ${err.message}`, { id: toastId });
+      toast.error(`Review failed: ${err.message}`, { id: toastId });
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
+    setDecision("");
     setComment("");
     onClose();
   };
+
   if (!isOpen || !document) return null;
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={() => !isSubmitting && handleClose()}
-      className="relative z-50"
-    >
+    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-xl font-bold">
-            Perform Peer Review
+      <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <Dialog.Title className="text-xl font-bold text-gray-900 mb-4">
+            Technical Review: {document.filename}
           </Dialog.Title>
-          <p className="text-sm text-gray-600 mt-1">
-            Document: {document.filename}
-          </p>
-          <div className="mt-4">
-            <label className="block text-sm font-medium">
-              Comments (Required for 'Reject' or 'Request Changes')
-            </label>
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-              disabled={isSubmitting}
-            />
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Decision *
+              </label>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setDecision("Approved")}
+                  className={`w-full py-2 px-4 rounded-md font-semibold transition ${
+                    decision === "Approved"
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                  disabled={isSubmitting}
+                >
+                  ✓ Approve
+                </button>
+                <button
+                  onClick={() => setDecision("ChangesRequested")}
+                  className={`w-full py-2 px-4 rounded-md font-semibold transition ${
+                    decision === "ChangesRequested"
+                      ? "bg-yellow-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                  disabled={isSubmitting}
+                >
+                  ⚠ Request Changes
+                </button>
+                <button
+                  onClick={() => setDecision("Rejected")}
+                  className={`w-full py-2 px-4 rounded-md font-semibold transition ${
+                    decision === "Rejected"
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                  disabled={isSubmitting}
+                >
+                  ✗ Reject
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Comments
+              </label>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={4}
+                className="w-full rounded-md border-gray-300 shadow-sm"
+                placeholder="Enter review comments..."
+                disabled={isSubmitting}
+              />
+            </div>
           </div>
-          <div className="mt-6 flex justify-end gap-3">
+
+          <div className="mt-6 flex gap-4">
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !decision}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {isSubmitting ? "Submitting..." : "Submit Review"}
+            </button>
             <button
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-md bg-gray-200 hover:bg-gray-300"
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-semibold hover:bg-gray-300"
             >
               Cancel
-            </button>
-            <button
-              onClick={() => handleSubmit("Rejected")}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              Reject
-            </button>
-            <button
-              onClick={() => handleSubmit("ChangesRequested")}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-md bg-yellow-500 text-black hover:bg-yellow-600 disabled:opacity-50"
-            >
-              Request Changes
-            </button>
-            <button
-              onClick={() => handleSubmit("Approved")}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-            >
-              Approve
             </button>
           </div>
         </Dialog.Panel>
@@ -102,4 +130,5 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
     </Dialog>
   );
 }
+
 export default ReviewModal;

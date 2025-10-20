@@ -1,94 +1,136 @@
-// frontend/src/components/ActionToolbar.jsx
+// frontend/src/components/ActionToolbar.jsx - Complete replacement
 
 import React from "react";
 
 function ActionToolbar({
   document,
   user,
-  onOpenSubmitModal,
+  onOpenSubmitQcModal,
+  onOpenSubmitReviewModal,
+  onOpenSubmitApprovalModal,
   onOpenQcModal,
   onOpenReviewModal,
   onOpenApprovalModal,
   onOpenAmendModal,
 }) {
   if (!document || !user) return null;
-  const { status } = document;
-  const { role } = user;
-  const isAuthor = user.id === document.author_id;
 
-  const getAction = () => {
-    if (isAuthor && status === "Draft") {
-      return (
-        <button
-          onClick={onOpenSubmitModal}
-          className="w-full sm:w-auto bg-blue-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-blue-700"
-        >
-          Submit for Review
-        </button>
-      );
-    }
-    if (
-      isAuthor &&
-      ["Rejected", "Changes Requested", "Approved"].includes(status)
-    ) {
-      return (
-        <button
-          onClick={onOpenAmendModal}
-          className="w-full sm:w-auto bg-yellow-500 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-600"
-        >
-          Amend and Resubmit
-        </button>
-      );
-    }
-    if ((role === "QC" || role === "Admin") && status === "In QC") {
-      return (
-        <button
-          onClick={onOpenQcModal}
-          className="w-full sm:w-auto bg-indigo-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-indigo-700"
-        >
-          Perform QC Check
-        </button>
-      );
-    }
-    if ((role === "Reviewer" || role === "Admin") && status === "In Review") {
-      return (
-        <button
-          onClick={onOpenReviewModal}
-          className="w-full sm:w-auto bg-purple-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-purple-700"
-        >
-          Perform Review
-        </button>
-      );
-    }
-    if (
-      (role === "Approver" || role === "Admin") &&
-      status === "Review Complete"
-    ) {
-      return (
-        <button
-          onClick={onOpenApprovalModal}
-          className="w-full sm:w-auto bg-green-600 text-white font-semibold px-4 py-2 rounded-md hover:bg-green-700"
-        >
-          Perform Final Approval
-        </button>
-      );
-    }
-    return (
-      <p className="text-sm text-gray-500">
-        No actions available for you at this time.
-      </p>
-    );
-  };
+  const {
+    status,
+    author_id,
+    qc_reviewers = [],
+    reviewers = [],
+    approver = {},
+  } = document;
+  const { role, id: userId } = user;
+  const isAuthor = author_id === userId;
+  const isAdmin = role === "Admin";
+
+  // Check if user is assigned to current stage
+  const isQcReviewer = qc_reviewers.some(
+    (r) => r.user_id === userId && r.status === "Pending"
+  );
+  const isTechReviewer = reviewers.some(
+    (r) => r.user_id === userId && r.status === "Pending"
+  );
+  const isApprover =
+    approver.user_id === userId && approver.status === "Pending";
+
+  // Debug logging (remove after testing)
+  console.log("ActionToolbar Debug:", {
+    status,
+    userId,
+    isAdmin,
+    isQcReviewer,
+    qc_reviewers,
+    role,
+  });
+
+  // Button visibility logic
+  const showSubmitQc = status === "Draft" && (isAuthor || isAdmin);
+  const showQcReview = status === "In QC" && (isQcReviewer || isAdmin);
+  const showSubmitReview = status === "QC Complete" && (isAuthor || isAdmin);
+  const showTechReview = status === "In Review" && (isTechReviewer || isAdmin);
+  const showSubmitApproval =
+    status === "Review Complete" && (isAuthor || isAdmin);
+  const showFinalApproval =
+    status === "Pending Approval" && (isApprover || isAdmin);
+  const showAmend = status === "Approved";
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4 mb-6 flex flex-col sm:flex-row justify-between items-center">
-      <div>
-        <h3 className="text-lg font-bold text-gray-800">Actions</h3>
-        <p className="text-sm text-gray-600">
-          Take the next step in the document workflow.
-        </p>
+    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">Actions</h3>
+          <p className="text-sm text-gray-500">
+            Take the next step in the document workflow.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          {showSubmitQc && (
+            <button
+              onClick={onOpenSubmitQcModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+            >
+              Submit for QC
+            </button>
+          )}
+
+          {showQcReview && (
+            <button
+              onClick={onOpenQcModal}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md font-semibold hover:bg-purple-700 transition"
+            >
+              QC Review
+            </button>
+          )}
+
+          {showSubmitReview && (
+            <button
+              onClick={onOpenSubmitReviewModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+            >
+              Submit for Technical Review
+            </button>
+          )}
+
+          {showTechReview && (
+            <button
+              onClick={onOpenReviewModal}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition"
+            >
+              Technical Review
+            </button>
+          )}
+
+          {showSubmitApproval && (
+            <button
+              onClick={onOpenSubmitApprovalModal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+            >
+              Submit for Approval
+            </button>
+          )}
+
+          {showFinalApproval && (
+            <button
+              onClick={onOpenApprovalModal}
+              className="px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 transition"
+            >
+              Final Approval
+            </button>
+          )}
+
+          {showAmend && (
+            <button
+              onClick={onOpenAmendModal}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md font-semibold hover:bg-gray-700 transition"
+            >
+              Create Amendment
+            </button>
+          )}
+        </div>
       </div>
-      <div className="mt-4 sm:mt-0">{getAction()}</div>
     </div>
   );
 }
