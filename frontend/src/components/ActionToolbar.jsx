@@ -1,5 +1,3 @@
-// frontend/src/components/ActionToolbar.jsx - Complete replacement
-
 import React from "react";
 
 function ActionToolbar({
@@ -12,6 +10,7 @@ function ActionToolbar({
   onOpenReviewModal,
   onOpenApprovalModal,
   onOpenAmendModal,
+  onArchiveDocument,
 }) {
   if (!document || !user) return null;
 
@@ -22,11 +21,12 @@ function ActionToolbar({
     reviewers = [],
     approver = {},
   } = document;
-  const { role, id: userId } = user;
+  const { id: userId, role } = user;
+
   const isAuthor = author_id === userId;
   const isAdmin = role === "Admin";
+  const isArchivist = role === "Archivist";
 
-  // Check if user is assigned to current stage
   const isQcReviewer = qc_reviewers.some(
     (r) => r.user_id === userId && r.status === "Pending"
   );
@@ -36,26 +36,27 @@ function ActionToolbar({
   const isApprover =
     approver.user_id === userId && approver.status === "Pending";
 
-  // Debug logging (remove after testing)
-  console.log("ActionToolbar Debug:", {
-    status,
-    userId,
-    isAdmin,
-    isQcReviewer,
-    qc_reviewers,
-    role,
-  });
-
-  // Button visibility logic
+  // status-driven button visibility rules
   const showSubmitQc = status === "Draft" && (isAuthor || isAdmin);
-  const showQcReview = status === "In QC" && (isQcReviewer || isAdmin);
+
+  const showQcReview =
+    ["In QC", "QC Rejected"].includes(status) && (isQcReviewer || isAdmin);
+
   const showSubmitReview = status === "QC Complete" && (isAuthor || isAdmin);
-  const showTechReview = status === "In Review" && (isTechReviewer || isAdmin);
+
+  const showTechReview =
+    ["In Review", "Under Revision"].includes(status) &&
+    (isTechReviewer || isAdmin);
+
   const showSubmitApproval =
     status === "Review Complete" && (isAuthor || isAdmin);
+
   const showFinalApproval =
     status === "Pending Approval" && (isApprover || isAdmin);
+
   const showAmend = status === "Approved";
+  const showArchive =
+    ["Approved", "Superseded"].includes(status) && (isArchivist || isAdmin);
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 mb-6">
@@ -66,11 +67,12 @@ function ActionToolbar({
             Take the next step in the document workflow.
           </p>
         </div>
-        <div className="flex gap-3">
+
+        <div className="flex flex-wrap gap-3 justify-end">
           {showSubmitQc && (
             <button
               onClick={onOpenSubmitQcModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700"
             >
               Submit for QC
             </button>
@@ -79,7 +81,7 @@ function ActionToolbar({
           {showQcReview && (
             <button
               onClick={onOpenQcModal}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md font-semibold hover:bg-purple-700 transition"
+              className="px-4 py-2 bg-purple-600 text-white rounded-md font-semibold hover:bg-purple-700"
             >
               QC Review
             </button>
@@ -88,16 +90,16 @@ function ActionToolbar({
           {showSubmitReview && (
             <button
               onClick={onOpenSubmitReviewModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700"
             >
-              Submit for Technical Review
+              Submit for Review
             </button>
           )}
 
           {showTechReview && (
             <button
               onClick={onOpenReviewModal}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700"
             >
               Technical Review
             </button>
@@ -106,7 +108,7 @@ function ActionToolbar({
           {showSubmitApproval && (
             <button
               onClick={onOpenSubmitApprovalModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-semibold hover:bg-blue-700"
             >
               Submit for Approval
             </button>
@@ -115,7 +117,7 @@ function ActionToolbar({
           {showFinalApproval && (
             <button
               onClick={onOpenApprovalModal}
-              className="px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 transition"
+              className="px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700"
             >
               Final Approval
             </button>
@@ -124,9 +126,18 @@ function ActionToolbar({
           {showAmend && (
             <button
               onClick={onOpenAmendModal}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md font-semibold hover:bg-gray-700 transition"
+              className="px-4 py-2 bg-gray-600 text-white rounded-md font-semibold hover:bg-gray-700"
             >
               Create Amendment
+            </button>
+          )}
+
+          {showArchive && (
+            <button
+              onClick={onArchiveDocument}
+              className="px-4 py-2 bg-yellow-700 text-white rounded-md font-semibold hover:bg-yellow-800"
+            >
+              Archive Document
             </button>
           )}
         </div>

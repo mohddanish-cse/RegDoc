@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
-import { apiCall } from "../utils/api"; // <-- Import apiCall
+import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
+// vX.Y formatting remains untouched
 const formatVersion = (doc) => {
   if (!doc) return "";
   if (doc.status === "Approved") {
@@ -18,6 +19,14 @@ function MetadataPanel({ document, versionHistory }) {
 
   if (!document) return null;
 
+  // Defensive date parsing for display
+  let uploadDate = "";
+  if (document.uploadDate) {
+    const dt = new Date(document.uploadDate);
+    uploadDate = isNaN(dt.valueOf()) ? "Unknown" : dt.toLocaleString();
+  }
+
+  // Copy to clipboard with feedback
   const handleCopyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -30,10 +39,10 @@ function MetadataPanel({ document, versionHistory }) {
     }
   };
 
+  // Digital signature verification
   const handleVerifySignature = async () => {
     setIsVerifying(true);
     const toastId = toast.loading("Verifying signature...");
-
     try {
       const response = await apiCall(
         `/documents/${document.id}/verify-signature`,
@@ -42,13 +51,11 @@ function MetadataPanel({ document, versionHistory }) {
       if (response.verified) {
         toast.success("Success! The signature is valid.", { id: toastId });
       } else {
-        // This case handles a signature that is invalid, which is a specific type of failure
         toast.error("Verification Failed: The signature is NOT valid.", {
           id: toastId,
         });
       }
     } catch (err) {
-      // This case handles network errors or backend crashes
       toast.error(`Verification Error: ${err.message}`, { id: toastId });
     } finally {
       setIsVerifying(false);
@@ -58,7 +65,6 @@ function MetadataPanel({ document, versionHistory }) {
   return (
     <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
       <h2 className="text-2xl font-bold mb-4">{document.filename}</h2>
-
       <div className="flex items-center gap-2 mb-4">
         <p className="text-lg font-mono text-gray-500">
           {document.document_number}
@@ -73,7 +79,6 @@ function MetadataPanel({ document, versionHistory }) {
             title="Copy document number"
             className="p-1 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100"
           >
-            {/* SVG icon for "copy" */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-5 w-5"
@@ -92,6 +97,7 @@ function MetadataPanel({ document, versionHistory }) {
         )}
       </div>
 
+      {/* Digital Signature if present */}
       {document.signature && (
         <div className="mb-4 p-3 bg-green-100 border-l-4 border-green-500 rounded-r-lg">
           <div className="flex justify-between items-center">
@@ -114,12 +120,39 @@ function MetadataPanel({ document, versionHistory }) {
         </div>
       )}
 
+      {/* Main document props */}
       <div className="space-y-3">
         <div>
           <p className="text-sm font-medium text-gray-500">Status</p>
           <div className="text-lg font-semibold text-gray-800">
             <StatusBadge status={document.status} />
           </div>
+          {/* New: explanations for new workflow states */}
+          {document.status === "QC Rejected" && (
+            <p className="text-red-600 text-sm font-medium">
+              Rejected during QC – needs author resubmission
+            </p>
+          )}
+          {document.status === "Under Revision" && (
+            <p className="text-yellow-600 text-sm font-medium">
+              Changes requested by reviewer – awaiting revision
+            </p>
+          )}
+          {document.status === "Rejected" && (
+            <p className="text-red-700 text-sm font-medium">
+              Document rejected during Technical Review
+            </p>
+          )}
+          {document.status === "Superseded" && (
+            <p className="text-gray-600 text-sm font-medium">
+              Replaced by newer approved version
+            </p>
+          )}
+          {document.status === "Archived" && (
+            <p className="text-gray-700 text-sm font-medium">
+              Archived after study conclusion – read-only
+            </p>
+          )}
         </div>
         <div>
           <p className="text-sm font-medium text-gray-500">Author</p>
@@ -131,12 +164,11 @@ function MetadataPanel({ document, versionHistory }) {
         </div>
         <div>
           <p className="text-sm font-medium text-gray-500">Upload Date</p>
-          <p className="text-gray-800">
-            {new Date(document.uploadDate).toLocaleString()}
-          </p>
+          <p className="text-gray-800">{uploadDate}</p>
         </div>
       </div>
 
+      {/* TMF Metadata, only if it exists */}
       {document.tmf_metadata && (
         <>
           <h3 className="text-xl font-bold mt-6 mb-3 border-t pt-4">
@@ -193,32 +225,36 @@ function MetadataPanel({ document, versionHistory }) {
         </>
       )}
 
-      {/* Version History Section */}
-      <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
-        Version History
-      </h3>
-      <ul className="space-y-2">
-        {versionHistory.map((version) => (
-          <li key={version.id}>
-            <Link
-              to={`/documents/${version.id}`}
-              className={`flex justify-between items-center p-2 rounded-md hover:bg-gray-100 ${
-                version.id === document.id ? "bg-blue-50" : ""
-              }`}
-            >
-              <div>
-                <span className="font-semibold">v{version.version}</span>
-                <span className="text-xs text-gray-500 ml-2">
-                  ({new Date(version.uploadDate).toLocaleDateString()})
-                </span>
-              </div>
-              <StatusBadge status={version.status} />
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {/* Version History */}
+      {versionHistory && versionHistory.length > 0 && (
+        <>
+          <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">
+            Version History
+          </h3>
+          <ul className="space-y-2">
+            {versionHistory.map((version) => (
+              <li key={version.id}>
+                <Link
+                  to={`/documents/${version.id}`}
+                  className={`flex justify-between items-center p-2 rounded-md hover:bg-gray-100 ${
+                    version.id === document.id ? "bg-blue-50" : ""
+                  }`}
+                >
+                  <div>
+                    <span className="font-semibold">v{version.version}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({new Date(version.uploadDate).toLocaleDateString()})
+                    </span>
+                  </div>
+                  <StatusBadge status={version.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
-      {/* Audit Trail Section */}
+      {/* Audit Trail */}
       <h3 className="text-xl font-bold mt-8 mb-4 border-t pt-4">Audit Trail</h3>
       <ul className="space-y-4">
         {document.history &&
