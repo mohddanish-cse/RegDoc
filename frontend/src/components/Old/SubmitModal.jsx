@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
-import { apiCall } from "../utils/api";
+import { apiCall } from "../../utils/api";
 import toast from "react-hot-toast";
-import UserSelector from "./UserSelector";
+import UserSelector from "../UserSelector";
 
 function SubmitModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);

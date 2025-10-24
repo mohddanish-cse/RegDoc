@@ -32,7 +32,6 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
       } else {
         toast.success("Document rejected", { id: toastId });
       }
-
       onApprovalSuccess();
       handleClose();
     } catch (err) {
@@ -43,89 +42,266 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
   };
 
   const handleClose = () => {
-    setDecision("");
-    setComment("");
-    onClose();
+    if (!isSubmitting) {
+      setDecision("");
+      setComment("");
+      onClose();
+    }
   };
 
   if (!isOpen || !document) return null;
 
   return (
     <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="text-xl font-bold text-gray-900 mb-4">
-            Final Approval: {document.filename}
-          </Dialog.Title>
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        aria-hidden="true"
+      />
 
-          <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-            <p className="text-sm text-yellow-800">
-              <strong>⚠️ Important:</strong> Approving will apply a digital
-              signature and lock the document.
-            </p>
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-lg backdrop-blur-sm">
+                <svg
+                  className="w-6 h-6 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <Dialog.Title className="text-xl font-bold text-white">
+                  Final Approval
+                </Dialog.Title>
+                <p className="text-green-100 text-sm mt-0.5">
+                  {document.filename}
+                </p>
+              </div>
+              <button
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="text-white/80 hover:text-white transition-colors p-1"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-4">
+          {/* Scrollable Content */}
+          <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+            {/* Warning Notice - More Compact */}
+            <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded flex items-start gap-2">
+              <svg
+                className="w-5 h-5 text-yellow-600 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-yellow-800">
+                  Important
+                </p>
+                <p className="text-xs text-yellow-700">
+                  Approving will apply a digital signature and lock the
+                  document.
+                </p>
+              </div>
+            </div>
+
+            {/* Decision Selection - More Compact */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Decision *
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Decision <span className="text-error-600">*</span>
               </label>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setDecision("Approved")}
-                  className={`flex-1 py-2 px-4 rounded-md font-semibold transition ${
-                    decision === "Approved"
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
                   disabled={isSubmitting}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    decision === "Approved"
+                      ? "border-green-500 bg-green-50 shadow-sm"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
                 >
-                  ✓ Approve & Sign
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        decision === "Approved" ? "bg-green-100" : "bg-gray-100"
+                      }`}
+                    >
+                      <svg
+                        className={`w-6 h-6 ${
+                          decision === "Approved"
+                            ? "text-green-600"
+                            : "text-gray-400"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                    <span
+                      className={`font-semibold text-sm ${
+                        decision === "Approved"
+                          ? "text-green-700"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      Approve & Sign
+                    </span>
+                    <p className="text-xs text-gray-600 text-center">
+                      Document meets requirements
+                    </p>
+                  </div>
                 </button>
+
                 <button
                   onClick={() => setDecision("Rejected")}
-                  className={`flex-1 py-2 px-4 rounded-md font-semibold transition ${
-                    decision === "Rejected"
-                      ? "bg-red-600 text-white"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
                   disabled={isSubmitting}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    decision === "Rejected"
+                      ? "border-error-500 bg-error-50 shadow-sm"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
                 >
-                  ✗ Reject
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        decision === "Rejected" ? "bg-error-100" : "bg-gray-100"
+                      }`}
+                    >
+                      <svg
+                        className={`w-6 h-6 ${
+                          decision === "Rejected"
+                            ? "text-error-600"
+                            : "text-gray-400"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </div>
+                    <span
+                      className={`font-semibold text-sm ${
+                        decision === "Rejected"
+                          ? "text-error-700"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      Reject
+                    </span>
+                    <p className="text-xs text-gray-600 text-center">
+                      Requires changes
+                    </p>
+                  </div>
                 </button>
               </div>
             </div>
 
+            {/* Comments Textarea - Smaller */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="comment"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
                 Comments
               </label>
               <textarea
+                id="comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                rows={4}
-                className="w-full rounded-md border-gray-300 shadow-sm"
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors resize-none"
                 placeholder="Enter approval comments..."
                 disabled={isSubmitting}
               />
             </div>
           </div>
 
-          <div className="mt-6 flex gap-4">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !decision}
-              className="px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 disabled:opacity-50"
-            >
-              {isSubmitting ? "Processing..." : "Submit Decision"}
-            </button>
+          {/* Footer */}
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-3 flex-shrink-0">
             <button
               onClick={handleClose}
               disabled={isSubmitting}
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-semibold hover:bg-gray-300"
+              className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !decision}
+              className={`px-4 py-2 text-sm font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm ${
+                decision === "Approved"
+                  ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                  : "bg-error-600 hover:bg-error-700 focus:ring-error-500"
+              }`}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <svg
+                    className="animate-spin h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : (
+                "Submit Decision"
+              )}
             </button>
           </div>
         </Dialog.Panel>

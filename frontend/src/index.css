@@ -1,1 +1,75 @@
 @import "tailwindcss";
+
+@theme {
+  /* Clinical Minimal Theme - Custom Colors */
+  
+  /* Primary - Clinical Blue */
+  --color-primary-50: #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #2563EB;
+  --color-primary-600: #1D4ED8;
+  --color-primary-700: #1E40AF;
+  --color-primary-800: #1E3A8A;
+  --color-primary-900: #1E293B;
+  
+  /* Accent - Clinical Teal */
+  --color-accent-50: #ECFEFF;
+  --color-accent-100: #CFFAFE;
+  --color-accent-200: #A5F3FC;
+  --color-accent-300: #67E8F9;
+  --color-accent-400: #22D3EE;
+  --color-accent-500: #0891B2;
+  --color-accent-600: #0E7490;
+  --color-accent-700: #155E75;
+  --color-accent-800: #164E63;
+  
+  /* Success - Clinical Green */
+  --color-success-50: #F0FDF4;
+  --color-success-100: #DCFCE7;
+  --color-success-200: #BBF7D0;
+  --color-success-300: #86EFAC;
+  --color-success-400: #4ADE80;
+  --color-success-500: #10B981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  
+  /* Warning - Amber */
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-200: #FDE68A;
+  --color-warning-300: #FCD34D;
+  --color-warning-400: #FBBF24;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+  
+  /* Error - Alert Red */
+  --color-error-50: #FEF2F2;
+  --color-error-100: #FEE2E2;
+  --color-error-200: #FECACA;
+  --color-error-300: #FCA5A5;
+  --color-error-400: #F87171;
+  --color-error-500: #EF4444;
+  --color-error-600: #DC2626;
+  
+  /* Clinical Purple */
+  --color-clinical-50: #FAF5FF;
+  --color-clinical-100: #F3E8FF;
+  --color-clinical-200: #E9D5FF;
+  --color-clinical-300: #D8B4FE;
+  --color-clinical-400: #C084FC;
+  --color-clinical-500: #8B5CF6;
+  --color-clinical-600: #7C3AED;
+  
+  /* Custom Shadows */
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.12);
+  
+  /* Custom Border Radius */
+  --radius-card: 12px;
+  --radius-button: 8px;
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { apiCall } from "../utils/api";
+import { apiCall } from "../../utils/api";
 
 function RoleAssigner({
   roleName,

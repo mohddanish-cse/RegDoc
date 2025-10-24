@@ -1,7 +1,7 @@
 // frontend/src/components/UserSelector.jsx
 
 import React, { useState, useEffect } from "react";
-import { apiCall } from "../utils/api";
+import { apiCall } from "../../utils/api";
 
 function UserSelector({
   stageName,

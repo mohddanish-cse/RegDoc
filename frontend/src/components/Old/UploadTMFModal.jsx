@@ -1,7 +1,7 @@
 // frontend/src/components/UploadTMFModal.jsx
 
 import React, { useState } from "react";
-import { apiCall } from "../utils/api";
+import { apiCall } from "../../utils/api";
 
 const tmfFields = [
   { key: "study_id", label: "Study ID" },

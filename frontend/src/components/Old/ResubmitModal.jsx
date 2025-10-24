@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Dialog } from "@headlessui/react";
-import { apiCall } from "../utils/api";
+import { apiCall } from "../../utils/api";
 import toast from "react-hot-toast";
 
 function ResubmitModal({ isOpen, onClose, document, onResubmitSuccess }) {
