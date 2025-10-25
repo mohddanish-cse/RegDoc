@@ -15,7 +15,12 @@ db = None
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, origins=[
+    "http://localhost:5173",  # Vite dev server (npm run dev)
+    "http://localhost:3000",  # Alternative port
+    "*"
+    ])
+
     
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
     jwt = JWTManager(app)
