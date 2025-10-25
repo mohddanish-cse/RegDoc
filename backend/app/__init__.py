@@ -16,9 +16,10 @@ db = None
 def create_app():
     app = Flask(__name__)
     CORS(app, origins=[
-    "http://localhost:5173",  # Vite dev server (npm run dev)
-    "http://localhost:3000",  # Alternative port
-    "*"
+        "http://localhost:5173",  # Local Vite dev
+        "http://localhost:3000",  # Alternative local
+        "https://regdoc-frontend.onrender.com",  # Production frontend
+        "https://regdoc-backend.onrender.com"  # Backend can call itself
     ])
 
     
