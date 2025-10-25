@@ -1,0 +1,344 @@
+{
+  "zones": [
+    {
+      "code": "01",
+      "name": "Trial Management",
+      "sections": [
+        {
+          "code": "01.01",
+          "name": "Trial Master File",
+          "artifacts": [
+            "TMF Plan",
+            "TMF Index",
+            "TMF Access Log",
+            "TMF Quality Metrics Report"
+          ]
+        },
+        {
+          "code": "01.02",
+          "name": "Trial Team & Delegation",
+          "artifacts": [
+            "Delegation Log",
+            "CVs & Training Records",
+            "Financial Disclosure Forms",
+            "Investigator Agreements"
+          ]
+        },
+        {
+          "code": "01.03",
+          "name": "Feasibility",
+          "artifacts": [
+            "Feasibility Questionnaire",
+            "Site Selection Report",
+            "Investigator Meeting Materials"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "02",
+      "name": "Central Trial Documents",
+      "sections": [
+        {
+          "code": "02.01",
+          "name": "Protocol & Amendments",
+          "artifacts": [
+            "Protocol (Final)",
+            "Protocol Amendment",
+            "Protocol Deviation Log",
+            "Protocol Clarification"
+          ]
+        },
+        {
+          "code": "02.02",
+          "name": "Investigator's Brochure",
+          "artifacts": [
+            "Investigator's Brochure (Current)",
+            "IB Amendment",
+            "IB Update Notification"
+          ]
+        },
+        {
+          "code": "02.03",
+          "name": "Informed Consent",
+          "artifacts": [
+            "Informed Consent Form (ICF)",
+            "ICF Translation",
+            "ICF Approval Letter",
+            "Assent Form"
+          ]
+        },
+        {
+          "code": "02.04",
+          "name": "Case Report Forms",
+          "artifacts": [
+            "Blank CRF",
+            "CRF Completion Guidelines",
+            "eCRF User Manual"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "03",
+      "name": "Regulatory & Ethics",
+      "sections": [
+        {
+          "code": "03.01",
+          "name": "Ethics Committee/IRB",
+          "artifacts": [
+            "EC/IRB Approval Letter",
+            "EC/IRB Submission Package",
+            "EC/IRB Membership List",
+            "EC/IRB Annual Review"
+          ]
+        },
+        {
+          "code": "03.02",
+          "name": "Regulatory Authority",
+          "artifacts": [
+            "CTA Submission",
+            "Regulatory Approval Letter",
+            "IND/CTA Correspondence",
+            "Annual Safety Report"
+          ]
+        },
+        {
+          "code": "03.03",
+          "name": "Insurance & Indemnity",
+          "artifacts": [
+            "Insurance Certificate",
+            "Indemnity Agreement",
+            "Insurance Renewal"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "04",
+      "name": "Investigational Product",
+      "sections": [
+        {
+          "code": "04.01",
+          "name": "IP Accountability",
+          "artifacts": [
+            "Drug Accountability Log",
+            "IP Destruction Records",
+            "IP Temperature Logs",
+            "IP Shipment Records"
+          ]
+        },
+        {
+          "code": "04.02",
+          "name": "IP Labeling",
+          "artifacts": [
+            "IP Label Specifications",
+            "Label Approval",
+            "Blinding Codes"
+          ]
+        },
+        {
+          "code": "04.03",
+          "name": "IP Manufacturing",
+          "artifacts": [
+            "Certificate of Analysis",
+            "Manufacturing Records",
+            "Stability Data"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "05",
+      "name": "Safety Reporting",
+      "sections": [
+        {
+          "code": "05.01",
+          "name": "Serious Adverse Events",
+          "artifacts": [
+            "SAE Report Form",
+            "SAE Log",
+            "SAE Reconciliation",
+            "Investigator SAE Assessment"
+          ]
+        },
+        {
+          "code": "05.02",
+          "name": "Annual Safety Reports",
+          "artifacts": [
+            "DSUR (Development Safety Update Report)",
+            "Annual Safety Report to EC/IRB"
+          ]
+        },
+        {
+          "code": "05.03",
+          "name": "SUSAR Reporting",
+          "artifacts": [
+            "SUSAR Report",
+            "SUSAR Line Listing",
+            "Expedited Safety Reports"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "06",
+      "name": "Central & Local Lab",
+      "sections": [
+        {
+          "code": "06.01",
+          "name": "Lab Certification",
+          "artifacts": [
+            "Lab Certification",
+            "Lab Normal Ranges",
+            "Lab Quality Control Reports"
+          ]
+        },
+        {
+          "code": "06.02",
+          "name": "Lab Transfer",
+          "artifacts": [
+            "Specimen Shipment Log",
+            "Sample Handling Manual",
+            "Lab Specimen Tracking"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "07",
+      "name": "Data Management",
+      "sections": [
+        {
+          "code": "07.01",
+          "name": "Data Management Plan",
+          "artifacts": [
+            "Data Management Plan",
+            "Data Validation Plan",
+            "eCRF Specifications"
+          ]
+        },
+        {
+          "code": "07.02",
+          "name": "Database Lock",
+          "artifacts": [
+            "Database Lock Certificate",
+            "Data Query Log",
+            "Database Audit Trail"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "08",
+      "name": "Statistics",
+      "sections": [
+        {
+          "code": "08.01",
+          "name": "Statistical Analysis",
+          "artifacts": [
+            "Statistical Analysis Plan (SAP)",
+            "Sample Size Calculation",
+            "Randomization Plan",
+            "Statistical Report"
+          ]
+        },
+        {
+          "code": "08.02",
+          "name": "Interim Analysis",
+          "artifacts": [
+            "Interim Analysis Plan",
+            "Interim Analysis Report",
+            "DSMB Charter"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "09",
+      "name": "Monitoring & Audit",
+      "sections": [
+        {
+          "code": "09.01",
+          "name": "Monitoring Plan",
+          "artifacts": [
+            "Monitoring Plan",
+            "Site Monitoring Visit Report",
+            "CAPA (Corrective/Preventive Action)",
+            "Site Initiation Visit Report"
+          ]
+        },
+        {
+          "code": "09.02",
+          "name": "Audit Reports",
+          "artifacts": [
+            "Audit Plan",
+            "Audit Report",
+            "Audit Certificate",
+            "Audit Response"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "10",
+      "name": "Study Reports",
+      "sections": [
+        {
+          "code": "10.01",
+          "name": "Clinical Study Report",
+          "artifacts": [
+            "Clinical Study Report (CSR)",
+            "Integrated Summary of Efficacy",
+            "Integrated Summary of Safety",
+            "CSR Appendices"
+          ]
+        },
+        {
+          "code": "10.02",
+          "name": "Publications",
+          "artifacts": [
+            "Publication Plan",
+            "Manuscript",
+            "Conference Poster/Presentation"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "11",
+      "name": "Site Management",
+      "sections": [
+        {
+          "code": "11.01",
+          "name": "Site Qualification",
+          "artifacts": [
+            "Site Qualification Visit Report",
+            "Site Contract",
+            "Site Budget",
+            "Site Payment Log"
+          ]
+        },
+        {
+          "code": "11.02",
+          "name": "Site Training",
+          "artifacts": [
+            "Training Plan",
+            "Training Materials",
+            "Training Attendance Log",
+            "Training Certificates"
+          ]
+        },
+        {
+          "code": "11.03",
+          "name": "Site Close-out",
+          "artifacts": [
+            "Site Close-out Visit Report",
+            "Site Close-out Checklist",
+            "Final Payments Confirmation"
+          ]
+        }
+      ]
+    }
+  ]
+}

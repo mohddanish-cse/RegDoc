@@ -11,7 +11,6 @@ from bson.errors import InvalidId
 document_read_blueprint = Blueprint('document_read', __name__)
 fs = gridfs.GridFS(db)
 
-# backend/app/document_read_routes.py - REPLACE list_documents function (line 13-53)
 
 @document_read_blueprint.route("/", methods=['GET'])
 @jwt_required()
