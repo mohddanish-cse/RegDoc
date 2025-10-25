@@ -18,7 +18,7 @@ def create_app():
     CORS(app, origins=[
         "http://localhost:5173",  # Local Vite dev
         "http://localhost:3000",  # Alternative local
-        "https://regdoc-frontend.onrender.com",  # Production frontend
+        "https://regdoc.onrender.com",  # Production frontend
         "https://regdoc-backend.onrender.com"  # Backend can call itself
     ])
 
