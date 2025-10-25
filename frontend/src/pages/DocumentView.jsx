@@ -18,6 +18,7 @@ import SubmitApprovalModal from "../components/SubmitApprovalModal";
 import ApprovalModal from "../components/ApprovalModal";
 import AmendModal from "../components/AmendModal";
 import MetadataPanel from "../components/MetadataPanel";
+import { API_BASE_URL } from "../utils/api";
 
 function DocumentView() {
   const { documentId } = useParams();
@@ -203,7 +204,7 @@ function DocumentView() {
         {/* PDF Viewer - Takes all remaining space */}
         <div className="flex-1 bg-white">
           <PdfViewer
-            fileUrl={`http://127.0.0.1:5000/api/documents/${document.id}/preview`}
+            fileUrl={`${API_BASE_URL}/documents/${document.id}/preview`}
             token={localStorage.getItem("token")}
           />
         </div>

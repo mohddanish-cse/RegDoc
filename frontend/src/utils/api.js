@@ -48,3 +48,5 @@ export const apiCall = async (endpoint, method = 'GET', body = null, isFormData 
     throw error;
   }
 };
+
+export { API_BASE_URL };
