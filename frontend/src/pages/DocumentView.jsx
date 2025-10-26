@@ -18,6 +18,9 @@ import SubmitApprovalModal from "../components/SubmitApprovalModal";
 import ApprovalModal from "../components/ApprovalModal";
 import AmendModal from "../components/AmendModal";
 import MetadataPanel from "../components/MetadataPanel";
+import UploadRevisionModal from "../components/UploadRevisionModal";
+import RecallModal from "../components/RecallModal";
+import SkipQcModal from "../components/SkipQcModal";
 import { API_BASE_URL } from "../utils/api";
 
 function DocumentView() {
@@ -39,6 +42,9 @@ function DocumentView() {
     useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
+  const [showUploadRevisionModal, setShowUploadRevisionModal] = useState(false);
+  const [showRecallModal, setShowRecallModal] = useState(false);
+  const [isSkipQcModalOpen, setIsSkipQcModalOpen] = useState(false);
 
   const fetchAllDocumentData = useCallback(async () => {
     try {
@@ -191,6 +197,9 @@ function DocumentView() {
           onOpenReviewModal={() => setIsReviewModalOpen(true)}
           onOpenApprovalModal={() => setIsApprovalModalOpen(true)}
           onOpenAmendModal={() => setIsAmendModalOpen(true)}
+          onOpenUploadRevisionModal={() => setShowUploadRevisionModal(true)}
+          onOpenRecallModal={() => setShowRecallModal(true)}
+          onOpenSkipQcModal={() => setIsSkipQcModalOpen(true)}
         />
       </div>
 
@@ -252,6 +261,29 @@ function DocumentView() {
         onClose={closeModal}
         document={document}
         onAmendSuccess={handleAmendSuccess}
+      />
+
+      <UploadRevisionModal
+        isOpen={showUploadRevisionModal}
+        onClose={() => setShowUploadRevisionModal(false)}
+        document={document}
+        documentNumber={document.doc_number}
+        onSuccess={handleActionSuccess}
+      />
+
+      <RecallModal
+        isOpen={showRecallModal}
+        onClose={() => setShowRecallModal(false)}
+        document={document}
+        documentNumber={document.doc_number}
+        onSuccess={handleActionSuccess}
+      />
+
+      <SkipQcModal
+        isOpen={isSkipQcModalOpen}
+        onClose={() => setIsSkipQcModalOpen(false)}
+        document={document}
+        onSubmitSuccess={handleActionSuccess}
       />
     </div>
   );

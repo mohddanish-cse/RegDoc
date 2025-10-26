@@ -30,14 +30,13 @@ def create_app():
     try:
         client = MongoClient(os.getenv("MONGO_URI"), server_api=ServerApi('1'))
         client.admin.command('ping')
-        print("✅ You successfully connected to MongoDB!")
+        print("You successfully connected to MongoDB!")
         db = client.RegDocDB
     except Exception as e:
         print(e)
         
     bcrypt.init_app(app)
     
-    # --- Cleaned Up Blueprint Registration ---
     from .auth import auth_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/api/auth')
 
@@ -52,8 +51,5 @@ def create_app():
     
     from .document_workflow_routes import document_workflow_blueprint
     app.register_blueprint(document_workflow_blueprint, url_prefix='/api/documents')
-    
-    from .workflow_template_routes import template_bp
-    app.register_blueprint(template_bp)
 
     return app

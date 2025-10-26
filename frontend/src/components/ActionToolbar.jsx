@@ -13,6 +13,9 @@ function ActionToolbar({
   onOpenApprovalModal,
   onOpenAmendModal,
   onArchiveDocument,
+  onOpenUploadRevisionModal,
+  onOpenRecallModal,
+  onOpenSkipQcModal,
 }) {
   if (!document || !user) return null;
 
@@ -38,8 +41,8 @@ function ActionToolbar({
   const isApprover =
     approver.user_id === userId && approver.status === "Pending";
 
-  // Status-driven button visibility rules
   const showSubmitQc = status === "Draft" && (isAuthor || isAdmin);
+  const showSkipQc = status === "Draft" && (isAuthor || isAdmin);
   const showQcReview =
     ["In QC", "QC Rejected"].includes(status) && (isQcReviewer || isAdmin);
   const showSubmitReview = status === "QC Complete" && (isAuthor || isAdmin);
@@ -54,6 +57,16 @@ function ActionToolbar({
   const showArchive =
     ["Approved", "Superseded"].includes(status) && (isArchivist || isAdmin);
 
+  // ✅ NEW: Upload Revised File button visibility
+  const showUploadRevision =
+    ["QC Rejected", "Review Rejected", "Approval Rejected"].includes(status) &&
+    (isAuthor || isAdmin);
+
+  // ✅ NEW: Recall button visibility
+  const showRecall =
+    ["In QC", "In Review", "Pending Approval"].includes(status) &&
+    (isAuthor || isAdmin);
+
   const hasAnyAction =
     showSubmitQc ||
     showQcReview ||
@@ -62,7 +75,9 @@ function ActionToolbar({
     showSubmitApproval ||
     showFinalApproval ||
     showAmend ||
-    showArchive;
+    showArchive ||
+    showUploadRevision ||
+    showRecall;
 
   // Get due date for display
   const dueDate = getDueDateFromDocument(document);
@@ -96,7 +111,6 @@ function ActionToolbar({
               <p className="text-sm text-gray-500">
                 Available actions for this document
               </p>
-              {/* ✅ DUE DATE BADGE - Separate line, visually separated */}
               {dueDate && (
                 <>
                   <span className="text-gray-300">•</span>
@@ -108,6 +122,52 @@ function ActionToolbar({
         </div>
 
         <div className="flex flex-wrap gap-2 justify-end">
+          {/* ✅ NEW: Upload Revised File button */}
+          {showUploadRevision && (
+            <button
+              onClick={onOpenUploadRevisionModal}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              Upload Revised File
+            </button>
+          )}
+
+          {/* ✅ NEW: Recall button */}
+          {showRecall && (
+            <button
+              onClick={onOpenRecallModal}
+              className="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all duration-200"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                />
+              </svg>
+              Recall Document
+            </button>
+          )}
+
           {showSubmitQc && (
             <button
               onClick={onOpenSubmitQcModal}
@@ -127,6 +187,28 @@ function ActionToolbar({
                 />
               </svg>
               Submit for QC
+            </button>
+          )}
+
+          {showSkipQc && (
+            <button
+              onClick={onOpenSkipQcModal}
+              className="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm font-semibold rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+              Skip QC & Submit for Review
             </button>
           )}
 
