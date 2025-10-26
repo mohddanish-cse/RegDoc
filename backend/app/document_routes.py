@@ -76,11 +76,10 @@ def upload_document():
         print(f"Error in upload_document: {e}")
         return jsonify({"error": "An internal error occurred"}), 500
 
-
 @document_blueprint.route("/my-tasks", methods=['GET'])
 @jwt_required()
 def get_my_tasks():
-    """Get documents assigned to current user for review"""
+    """Get documents assigned to current user for review (or all documents for Admin)"""
     try:
         user_id = ObjectId(get_jwt_identity())
         user = db.users.find_one({'_id': user_id})
@@ -90,55 +89,64 @@ def get_my_tasks():
         
         documents = []
         
-        # QC assigned documents
-        qc_docs = list(db.documents.find({
-            'status': 'In QC',
-            'qc_reviewers': {
-                '$elemMatch': {
-                    'user_id': user_id,
-                    'status': 'Pending'
+        # ✅ ADMIN SEES ALL DOCUMENTS (oversight role)
+        if user.get('role') == 'Admin':
+            # Get ALL documents for admin
+            all_docs = list(db.documents.find({}))
+            documents = all_docs
+        else:
+            # Regular users: only assigned documents
+            # QC assigned documents
+            qc_docs = list(db.documents.find({
+                'status': 'In QC',
+                'qc_reviewers': {
+                    '$elemMatch': {
+                        'user_id': user_id,
+                        'status': 'Pending'
+                    }
                 }
-            }
-        }))
-        
-        # Technical review assigned documents
-        review_docs = list(db.documents.find({
-            'status': 'In Review',
-            'reviewers': {
-                '$elemMatch': {
-                    'user_id': user_id,
-                    'status': 'Pending'
+            }))
+            
+            # Technical review assigned documents
+            review_docs = list(db.documents.find({
+                'status': 'In Review',
+                'reviewers': {
+                    '$elemMatch': {
+                        'user_id': user_id,
+                        'status': 'Pending'
+                    }
                 }
-            }
-        }))
+            }))
+            
+            # Approval assigned documents
+            approval_docs = list(db.documents.find({
+                'status': 'Pending Approval',
+                'approver.user_id': user_id,
+                'approver.status': 'Pending'
+            }))
+            
+            # Draft/intermediate documents authored by user
+            draft_docs = list(db.documents.find({
+                'author_id': user_id,
+                'status': {'$in': ['Draft', 'QC Complete', 'Review Complete']}
+            }))
+            
+            # Combine all
+            all_docs = qc_docs + review_docs + approval_docs + draft_docs
+            
+            # Remove duplicates
+            seen_ids = set()
+            unique_docs = []
+            for doc in all_docs:
+                doc_id = str(doc['_id'])
+                if doc_id not in seen_ids:
+                    seen_ids.add(doc_id)
+                    unique_docs.append(doc)
+            
+            documents = unique_docs
         
-        # Approval assigned documents
-        approval_docs = list(db.documents.find({
-            'status': 'Pending Approval',
-            'approver.user_id': user_id,
-            'approver.status': 'Pending'
-        }))
-        
-        # Draft/intermediate documents authored by user
-        draft_docs = list(db.documents.find({
-            'author_id': user_id,
-            'status': {'$in': ['Draft', 'QC Complete', 'Review Complete']}
-        }))
-        
-        # Combine all
-        all_docs = qc_docs + review_docs + approval_docs + draft_docs
-        
-        # Remove duplicates
-        seen_ids = set()
-        unique_docs = []
-        for doc in all_docs:
-            doc_id = str(doc['_id'])
-            if doc_id not in seen_ids:
-                seen_ids.add(doc_id)
-                unique_docs.append(doc)
-        
-        # Format response
-        for doc in unique_docs:
+        # Format response (same for all users)
+        for doc in documents:
             doc['id'] = str(doc['_id'])
             del doc['_id']
             
@@ -146,7 +154,6 @@ def get_my_tasks():
             original_author_id = doc.get('author_id')
             if original_author_id:
                 doc['author_id'] = str(original_author_id)
-                # Get author username
                 if 'author_username' not in doc:
                     author = db.users.find_one({'_id': original_author_id})
                     doc['author_username'] = author['username'] if author else 'Unknown'
@@ -164,6 +171,14 @@ def get_my_tasks():
             if 'revisions' in doc and len(doc['revisions']) > 0:
                 active_rev_idx = doc.get('active_revision', 0)
                 doc['filename'] = doc['revisions'][active_rev_idx].get('filename', 'Unknown')
+            
+            # ✅ Due date fields
+            doc['qc_due_date'] = doc.get('qc_due_date')
+            doc['review_due_date'] = doc.get('review_due_date')
+            if 'approver' in doc and doc['approver']:
+                doc['approval_due_date'] = doc['approver'].get('due_date')
+            else:
+                doc['approval_due_date'] = None
             
             # Convert QC reviewers
             if 'qc_reviewers' in doc:
@@ -208,10 +223,201 @@ def get_my_tasks():
                     if 'uploaded_at' in rev:
                         rev['uploaded_at'] = rev['uploaded_at'].isoformat()
         
-        return jsonify(unique_docs), 200
+        
+        # ✅ SORT DOCUMENTS BY DUE DATE (MOST URGENT FIRST)
+        # Priority: 1. Overdue, 2. Due soon, 3. Future dates, 4. No due date
+        def get_sort_key(doc):
+            # Get the relevant due date based on status
+            status = doc.get('status', '')
+            due_date = None
+            
+            if status == 'In QC':
+                due_date = doc.get('qc_due_date')
+            elif status == 'In Review':
+                due_date = doc.get('review_due_date')
+            elif status == 'Pending Approval':
+                due_date = doc.get('approval_due_date')
+            
+            # If no due date, put at the end
+            if not due_date:
+                return (3, None)  # Lowest priority
+            
+            # Parse the date
+            from datetime import datetime
+            try:
+                due = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+                now = datetime.now(due.tzinfo) if due.tzinfo else datetime.now()
+                
+                # Calculate days difference
+                days_diff = (due - now).days
+                
+                # Priority groups:
+                # 0 = Overdue (most urgent)
+                # 1 = Due today or tomorrow
+                # 2 = Future dates
+                if days_diff < 0:
+                    return (0, due)  # Overdue - highest priority
+                elif days_diff <= 1:
+                    return (1, due)  # Due soon
+                else:
+                    return (2, due)  # Future
+            except:
+                return (3, None)  # Invalid date format
+        
+        # Sort documents (most urgent first)
+        documents.sort(key=get_sort_key)
+
+        return jsonify(documents), 200
         
     except Exception as e:
         print(f"Error in get_my_tasks: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+# @document_blueprint.route("/my-tasks", methods=['GET'])
+# @jwt_required()
+# def get_my_tasks():
+#     """Get documents assigned to current user for review"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+        
+#         if not user:
+#             return jsonify({"error": "User not found"}), 404
+        
+#         documents = []
+        
+#         # QC assigned documents
+#         qc_docs = list(db.documents.find({
+#             'status': 'In QC',
+#             'qc_reviewers': {
+#                 '$elemMatch': {
+#                     'user_id': user_id,
+#                     'status': 'Pending'
+#                 }
+#             }
+#         }))
+        
+#         # Technical review assigned documents
+#         review_docs = list(db.documents.find({
+#             'status': 'In Review',
+#             'reviewers': {
+#                 '$elemMatch': {
+#                     'user_id': user_id,
+#                     'status': 'Pending'
+#                 }
+#             }
+#         }))
+        
+#         # Approval assigned documents
+#         approval_docs = list(db.documents.find({
+#             'status': 'Pending Approval',
+#             'approver.user_id': user_id,
+#             'approver.status': 'Pending'
+#         }))
+        
+#         # Draft/intermediate documents authored by user
+#         draft_docs = list(db.documents.find({
+#             'author_id': user_id,
+#             'status': {'$in': ['Draft', 'QC Complete', 'Review Complete']}
+#         }))
+        
+#         # Combine all
+#         all_docs = qc_docs + review_docs + approval_docs + draft_docs
+        
+#         # Remove duplicates
+#         seen_ids = set()
+#         unique_docs = []
+#         for doc in all_docs:
+#             doc_id = str(doc['_id'])
+#             if doc_id not in seen_ids:
+#                 seen_ids.add(doc_id)
+#                 unique_docs.append(doc)
+        
+#         # Format response
+#         for doc in unique_docs:
+#             doc['id'] = str(doc['_id'])
+#             del doc['_id']
+            
+#             # Convert author_id
+#             original_author_id = doc.get('author_id')
+#             if original_author_id:
+#                 doc['author_id'] = str(original_author_id)
+#                 # Get author username
+#                 if 'author_username' not in doc:
+#                     author = db.users.find_one({'_id': original_author_id})
+#                     doc['author_username'] = author['username'] if author else 'Unknown'
+            
+#             # Ensure doc_number exists
+#             if 'doc_number' not in doc:
+#                 doc['doc_number'] = 'N/A'
+            
+#             # Build version string
+#             major = doc.get('major_version', 1)
+#             minor = doc.get('minor_version', 0)
+#             doc['version'] = f"{major}.{minor}"
+            
+#             # Get filename from revisions
+#             if 'revisions' in doc and len(doc['revisions']) > 0:
+#                 active_rev_idx = doc.get('active_revision', 0)
+#                 doc['filename'] = doc['revisions'][active_rev_idx].get('filename', 'Unknown')
+
+#             doc['qc_due_date'] = doc.get('qc_due_date')
+#             doc['review_due_date'] = doc.get('review_due_date')
+#             if 'approver' in doc and doc['approver']:
+#                 doc['approval_due_date'] = doc['approver'].get('due_date')
+#             else:
+#                 doc['approval_due_date'] = None
+
+#             # Convert QC reviewers
+#             if 'qc_reviewers' in doc:
+#                 for reviewer in doc['qc_reviewers']:
+#                     reviewer['user_id'] = str(reviewer['user_id'])
+#                     if reviewer.get('reviewed_at'):
+#                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
+            
+#             # Convert technical reviewers
+#             if 'reviewers' in doc:
+#                 for reviewer in doc['reviewers']:
+#                     reviewer['user_id'] = str(reviewer['user_id'])
+#                     if reviewer.get('reviewed_at'):
+#                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
+            
+#             # Convert approver
+#             if 'approver' in doc and doc['approver']:
+#                 if 'user_id' in doc['approver']:
+#                     doc['approver']['user_id'] = str(doc['approver']['user_id'])
+#                 if doc['approver'].get('approved_at'):
+#                     doc['approver']['approved_at'] = doc['approver']['approved_at'].isoformat()
+            
+#             # Convert history
+#             if 'history' in doc:
+#                 for entry in doc['history']:
+#                     if 'user_id' in entry:
+#                         entry['user_id'] = str(entry['user_id'])
+#                     if 'timestamp' in entry:
+#                         entry['timestamp'] = entry['timestamp'].isoformat()
+            
+#             # Convert dates
+#             if 'created_at' in doc:
+#                 doc['created_at'] = doc['created_at'].isoformat()
+#             if 'signed_at' in doc:
+#                 doc['signed_at'] = doc['signed_at'].isoformat()
+            
+#             # Convert revisions
+#             if 'revisions' in doc:
+#                 for rev in doc['revisions']:
+#                     if 'file_id' in rev:
+#                         rev['file_id'] = str(rev['file_id'])
+#                     if 'uploaded_at' in rev:
+#                         rev['uploaded_at'] = rev['uploaded_at'].isoformat()
+        
+#         return jsonify(unique_docs), 200
+        
+#     except Exception as e:
+#         print(f"Error in get_my_tasks: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return jsonify({"error": str(e)}), 500

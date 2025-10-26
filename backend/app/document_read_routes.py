@@ -11,7 +11,6 @@ from bson.errors import InvalidId
 document_read_blueprint = Blueprint('document_read', __name__)
 fs = gridfs.GridFS(db)
 
-
 @document_read_blueprint.route("/", methods=['GET'])
 @jwt_required()
 def list_documents():
@@ -57,10 +56,13 @@ def list_documents():
             
             documents_list.append({
                 'id': str(doc.get('_id')),
-                'doc_number': doc.get('doc_number', 'N/A'),  # ✅ CHANGED from document_number
+                'doc_number': doc.get('doc_number', 'N/A'), 
                 'filename': active_rev.get('filename', 'Unknown'),
                 'status': doc.get('status', 'Draft'),
-                'author_username': author_username  # ✅ CHANGED from author
+                'author_username': author_username,
+                'qc_due_date': doc.get('qc_due_date'),
+                'review_due_date': doc.get('review_due_date'),
+                'approval_due_date': doc.get('approver', {}).get('due_date')
             })
 
         return jsonify({
@@ -132,8 +134,12 @@ def get_document_details(doc_id):
                 'user_id': str(doc_metadata['approver']['user_id']),
                 'status': doc_metadata['approver']['status'],
                 'approved_at': doc_metadata['approver']['approved_at'].isoformat() if doc_metadata['approver'].get('approved_at') else None,
-                'comment': doc_metadata['approver'].get('comment', '')
+                'comment': doc_metadata['approver'].get('comment', ''),
+                'due_date': doc_metadata['approver'].get('due_date')
             }
+        
+        response_data['qc_due_date'] = doc_metadata.get('qc_due_date')
+        response_data['review_due_date'] = doc_metadata.get('review_due_date')
         
         if 'signature' in doc_metadata:
             response_data['signature'] = doc_metadata.get('signature')
@@ -162,6 +168,7 @@ def get_document_details(doc_id):
         return jsonify({"error": "An internal server error occurred"}), 500
 
     
+
 @document_read_blueprint.route("/<doc_id>/preview", methods=['GET'])
 @jwt_required()
 def preview_document(doc_id):

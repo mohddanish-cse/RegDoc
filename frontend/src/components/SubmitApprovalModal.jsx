@@ -9,10 +9,14 @@ function SubmitApprovalModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const [approvers, setApprovers] = useState([]);
   const [selectedApprover, setSelectedApprover] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dueDate, setDueDate] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       fetchApprovers();
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 2);
+      setDueDate(defaultDate.toISOString().split("T")[0]);
     }
   }, [isOpen]);
 
@@ -37,6 +41,7 @@ function SubmitApprovalModal({ isOpen, onClose, document, onSubmitSuccess }) {
     try {
       await apiCall(`/documents/${document.id}/submit-approval`, "POST", {
         approver: selectedApprover,
+        due_date: dueDate,
       });
 
       toast.success("Document submitted for final approval!", { id: toastId });
@@ -52,6 +57,7 @@ function SubmitApprovalModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const handleClose = () => {
     if (!isSubmitting) {
       setSelectedApprover("");
+      setDueDate("");
       onClose();
     }
   };
@@ -139,6 +145,25 @@ function SubmitApprovalModal({ isOpen, onClose, document, onSubmitSuccess }) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="mb-4">
+              <label
+                htmlFor="approval-due-date"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Due Date <span className="text-error-600">*</span>
+              </label>
+              <input
+                type="date"
+                id="approval-due-date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
+                required
+              />
             </div>
 
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

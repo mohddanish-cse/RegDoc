@@ -1,4 +1,6 @@
 import React from "react";
+import DueDateBadge from "./DueDateBadge";
+import { getDueDateFromDocument } from "../utils/dateUtils";
 
 function ActionToolbar({
   document,
@@ -62,6 +64,9 @@ function ActionToolbar({
     showAmend ||
     showArchive;
 
+  // Get due date for display
+  const dueDate = getDueDateFromDocument(document);
+
   if (!hasAnyAction) return null;
 
   return (
@@ -83,13 +88,22 @@ function ActionToolbar({
               />
             </svg>
           </div>
-          <div>
+          <div className="flex flex-col">
             <h3 className="text-lg font-semibold text-gray-900">
               Workflow Actions
             </h3>
-            <p className="text-sm text-gray-500">
-              Available actions for this document
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm text-gray-500">
+                Available actions for this document
+              </p>
+              {/* ✅ DUE DATE BADGE - Separate line, visually separated */}
+              {dueDate && (
+                <>
+                  <span className="text-gray-300">•</span>
+                  <DueDateBadge dueDate={dueDate} />
+                </>
+              )}
+            </div>
           </div>
         </div>
 

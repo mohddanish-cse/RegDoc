@@ -9,12 +9,16 @@ import toast from "react-hot-toast";
 function SubmitReviewModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const [reviewers, setReviewers] = useState([]);
   const [selectedReviewers, setSelectedReviewers] = useState([]);
+  const [dueDate, setDueDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchReviewers();
     }
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 5);
+    setDueDate(defaultDate.toISOString().split("T")[0]);
   }, [isOpen]);
 
   const fetchReviewers = async () => {
@@ -43,6 +47,7 @@ function SubmitReviewModal({ isOpen, onClose, document, onSubmitSuccess }) {
       const reviewerIds = selectedReviewers.map((r) => r.value);
       await apiCall(`/documents/${document.id}/submit-review`, "POST", {
         reviewers: reviewerIds,
+        due_date: dueDate,
       });
 
       toast.success("Document submitted for technical review!", {
@@ -60,6 +65,7 @@ function SubmitReviewModal({ isOpen, onClose, document, onSubmitSuccess }) {
   const handleClose = () => {
     if (!isSubmitting) {
       setSelectedReviewers([]);
+      setDueDate("");
       onClose();
     }
   };
@@ -139,6 +145,25 @@ function SubmitReviewModal({ isOpen, onClose, document, onSubmitSuccess }) {
                 isDisabled={isSubmitting}
                 className="react-select-container"
                 classNamePrefix="react-select"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label
+                htmlFor="review-due-date"
+                className="block text-sm font-semibold text-gray-700 mb-2"
+              >
+                Due Date <span className="text-error-600">*</span>
+              </label>
+              <input
+                type="date"
+                id="review-due-date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200"
+                required
               />
             </div>
 

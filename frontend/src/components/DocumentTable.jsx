@@ -3,13 +3,18 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
+import DueDateBadge from "./DueDateBadge";
+import { getDueDateFromDocument } from "../utils/dateUtils";
 
 function DocumentTable({ documents, currentUser }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Determine if we're on the tasks page
+  const isTasksPage =
+    location.pathname === "/" || location.pathname.includes("/tasks");
+
   const handleRowClick = (docId) => {
-    // ✅ PRESERVED: Detect which page we're on and pass it to document view
     const fromPage = location.pathname.includes("/library")
       ? "library"
       : "tasks";
@@ -56,45 +61,61 @@ function DocumentTable({ documents, currentUser }) {
             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
               Status
             </th>
+            {/* Conditionally render Due Date header - Only in Tasks */}
+            {isTasksPage && (
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Due Date
+              </th>
+            )}
             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
               Author
             </th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
-          {documents.map((doc) => (
-            <tr
-              key={doc.id}
-              onClick={() => handleRowClick(doc.id)}
-              className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-            >
-              <td className="px-6 py-4 whitespace-nowrap">
-                <code className="text-sm font-mono text-gray-700">
-                  {doc.doc_number || "N/A"}
-                </code>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className="text-sm font-medium text-primary-600 hover:text-primary-700">
-                  {doc.filename || "Unknown"}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <StatusBadge status={doc.status} />
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-6 h-6 bg-primary-100 rounded-full">
-                    <span className="text-xs font-semibold text-primary-700">
-                      {doc.author_username?.charAt(0).toUpperCase() || "?"}
+          {documents.map((doc) => {
+            const dueDate = getDueDateFromDocument(doc);
+
+            return (
+              <tr
+                key={doc.id}
+                onClick={() => handleRowClick(doc.id)}
+                className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+              >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <code className="text-sm font-mono text-gray-700">
+                    {doc.doc_number || "N/A"}
+                  </code>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                    {doc.filename || "Unknown"}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <StatusBadge status={doc.status} />
+                </td>
+                {/* Conditionally render Due Date cell - Only in Tasks */}
+                {isTasksPage && (
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <DueDateBadge dueDate={dueDate} />
+                  </td>
+                )}
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-6 h-6 bg-primary-100 rounded-full">
+                      <span className="text-xs font-semibold text-primary-700">
+                        {doc.author_username?.charAt(0).toUpperCase() || "?"}
+                      </span>
+                    </div>
+                    <span className="text-sm text-gray-900">
+                      {doc.author_username || "Unknown"}
                     </span>
                   </div>
-                  <span className="text-sm text-gray-900">
-                    {doc.author_username || "Unknown"}
-                  </span>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

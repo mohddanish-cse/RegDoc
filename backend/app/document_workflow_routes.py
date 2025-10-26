@@ -37,6 +37,7 @@ def submit_for_qc(doc_id):
         
         data = request.get_json()
         qc_reviewer_ids = data.get('qc_reviewers', [])
+        due_date = data.get('due_date')
         
         if not qc_reviewer_ids:
             return jsonify({"error": "At least one QC reviewer must be selected"}), 400
@@ -57,7 +58,8 @@ def submit_for_qc(doc_id):
             {'$set': {
                 'status': 'In QC',
                 'current_stage': 'QC',
-                'qc_reviewers': qc_reviewers
+                'qc_reviewers': qc_reviewers,
+                'qc_due_date': due_date
             },
             '$push': {
                 'history': {
@@ -186,6 +188,7 @@ def submit_for_review(doc_id):
         
         data = request.get_json()
         reviewer_ids = data.get('reviewers', [])
+        due_date = data.get('due_date')
         
         if not reviewer_ids:
             return jsonify({"error": "At least one reviewer must be selected"}), 400
@@ -206,7 +209,8 @@ def submit_for_review(doc_id):
             {'$set': {
                 'status': 'In Review',
                 'current_stage': 'Technical Review',
-                'reviewers': reviewers
+                'reviewers': reviewers,
+                'review_due_date': due_date
             },
             '$push': {
                 'history': {
@@ -339,6 +343,7 @@ def submit_for_approval(doc_id):
         
         data = request.get_json()
         approver_id = data.get('approver')
+        due_date = data.get('due_date') 
         
         if not approver_id:
             return jsonify({"error": "Approver must be selected"}), 400
@@ -353,7 +358,8 @@ def submit_for_approval(doc_id):
                     'user_id': ObjectId(approver_id),
                     'status': 'Pending',
                     'approved_at': None,
-                    'comment': ''
+                    'comment': '',
+                    'due_date': due_date
                 }
             },
             '$push': {

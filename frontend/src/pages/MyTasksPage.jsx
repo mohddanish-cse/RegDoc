@@ -208,20 +208,6 @@ function MyTasksPage() {
         onClose={() => setIsUploadModalOpen(false)}
         onUploadSuccess={handleUploadSuccess}
       />
-
-      <ReviewModal
-        isOpen={isReviewModalOpen}
-        onClose={closeModal}
-        document={selectedDoc}
-        onReviewSuccess={handleActionSuccess}
-      />
-
-      <ApprovalModal
-        isOpen={isApprovalModalOpen}
-        onClose={closeModal}
-        document={selectedDoc}
-        onApprovalSuccess={handleActionSuccess}
-      />
     </>
   );
 }
