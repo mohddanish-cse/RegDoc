@@ -101,7 +101,7 @@ function DocumentView() {
 
   if (isLoading)
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center space-x-3">
           <svg
             className="animate-spin h-6 w-6 text-primary-600"
