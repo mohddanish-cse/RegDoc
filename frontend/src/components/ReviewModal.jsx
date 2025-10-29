@@ -25,7 +25,15 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
         comment: comment,
       });
 
-      toast.success(`Review: ${decision}`, { id: toastId });
+      if (decision === "Approved") {
+        toast.success("Technical review approved!", { id: toastId });
+      } else if (decision === "RequestChanges") {
+        toast.success("Changes requested - document returned to author", {
+          id: toastId,
+        });
+      } else {
+        toast.success("Document withdrawn completely", { id: toastId });
+      }
       onReviewSuccess();
       handleClose();
     } catch (err) {
@@ -55,7 +63,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="bg-gradient-to-r from-cyan-600 to-cyan-700 px-6 py-4 flex-shrink-0">
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-lg backdrop-blur-sm">
                 <svg
@@ -68,13 +76,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
                   />
                 </svg>
               </div>
@@ -82,7 +84,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                 <Dialog.Title className="text-xl font-bold text-white">
                   Technical Review
                 </Dialog.Title>
-                <p className="text-cyan-100 text-sm mt-0.5">
+                <p className="text-purple-100 text-sm mt-0.5">
                   {document.filename}
                 </p>
               </div>
@@ -113,9 +115,10 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
             {/* Decision Selection */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Review Decision <span className="text-error-600">*</span>
+                Decision <span className="text-error-600">*</span>
               </label>
               <div className="space-y-3">
+                {/* Approve Button */}
                 <button
                   onClick={() => setDecision("Approved")}
                   disabled={isSubmitting}
@@ -137,17 +140,17 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                         <div className="w-2 h-2 rounded-full bg-green-600"></div>
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <span className="font-semibold text-gray-900">
                         Approve
                       </span>
                       <p className="text-sm text-gray-600">
-                        Technical criteria met
+                        Content meets technical requirements
                       </p>
                     </div>
                     {decision === "Approved" && (
                       <svg
-                        className="w-5 h-5 text-green-600 ml-auto"
+                        className="w-5 h-5 text-green-600"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
@@ -161,11 +164,12 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                   </div>
                 </button>
 
+                {/* Request Changes */}
                 <button
-                  onClick={() => setDecision("ChangesRequested")}
+                  onClick={() => setDecision("RequestChanges")}
                   disabled={isSubmitting}
                   className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-                    decision === "ChangesRequested"
+                    decision === "RequestChanges"
                       ? "border-yellow-500 bg-yellow-50 shadow-sm"
                       : "border-gray-200 hover:border-gray-300 bg-white"
                   }`}
@@ -173,26 +177,26 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        decision === "ChangesRequested"
+                        decision === "RequestChanges"
                           ? "border-yellow-600"
                           : "border-gray-300"
                       }`}
                     >
-                      {decision === "ChangesRequested" && (
+                      {decision === "RequestChanges" && (
                         <div className="w-2 h-2 rounded-full bg-yellow-600"></div>
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <span className="font-semibold text-gray-900">
                         Request Changes
                       </span>
                       <p className="text-sm text-gray-600">
-                        Needs modifications
+                        Minor fixes needed - returns to same reviewer
                       </p>
                     </div>
-                    {decision === "ChangesRequested" && (
+                    {decision === "RequestChanges" && (
                       <svg
-                        className="w-5 h-5 text-yellow-600 ml-auto"
+                        className="w-5 h-5 text-yellow-600"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
@@ -206,11 +210,12 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                   </div>
                 </button>
 
+                {/* Reject Completely */}
                 <button
-                  onClick={() => setDecision("Rejected")}
+                  onClick={() => setDecision("RejectedCompletely")}
                   disabled={isSubmitting}
                   className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
-                    decision === "Rejected"
+                    decision === "RejectedCompletely"
                       ? "border-error-500 bg-error-50 shadow-sm"
                       : "border-gray-200 hover:border-gray-300 bg-white"
                   }`}
@@ -218,24 +223,26 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        decision === "Rejected"
+                        decision === "RejectedCompletely"
                           ? "border-error-600"
                           : "border-gray-300"
                       }`}
                     >
-                      {decision === "Rejected" && (
+                      {decision === "RejectedCompletely" && (
                         <div className="w-2 h-2 rounded-full bg-error-600"></div>
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <span className="font-semibold text-gray-900">
-                        Reject
+                        Reject Completely
                       </span>
-                      <p className="text-sm text-gray-600">Document rejected</p>
+                      <p className="text-sm text-gray-600">
+                        Document withdrawn (no further action)
+                      </p>
                     </div>
-                    {decision === "Rejected" && (
+                    {decision === "RejectedCompletely" && (
                       <svg
-                        className="w-5 h-5 text-error-600 ml-auto"
+                        className="w-5 h-5 text-error-600"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
@@ -257,14 +264,14 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                 htmlFor="comment"
                 className="block text-sm font-semibold text-gray-700 mb-2"
               >
-                Review Comments
+                Comments
               </label>
               <textarea
                 id="comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-colors resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none"
                 placeholder="Enter review comments..."
                 disabled={isSubmitting}
               />
@@ -283,7 +290,13 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !decision}
-              className="px-4 py-2 text-sm font-semibold text-white bg-cyan-600 rounded-lg hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              className={`px-4 py-2 text-sm font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm ${
+                decision === "Approved"
+                  ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                  : decision === "RequestChanges"
+                  ? "bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500"
+                  : "bg-error-600 hover:bg-error-700 focus:ring-error-500"
+              }`}
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
@@ -306,7 +319,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Submitting...
+                  Processing...
                 </span>
               ) : (
                 "Submit Review"

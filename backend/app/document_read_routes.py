@@ -88,73 +88,99 @@ def get_document_details(doc_id):
         if not doc_metadata:
             return jsonify({"error": "Document not found"}), 404
         
-        active_rev = doc_metadata.get('revisions', [])[doc_metadata.get('active_revision', 0)]
+        # ✅ SAFE REVISION ACCESS
+        revisions = doc_metadata.get('revisions', [])
+        if not revisions:
+            return jsonify({"error": "Document has no revisions"}), 400
+            
+        active_rev_index = doc_metadata.get('active_revision', 0)
+        if active_rev_index >= len(revisions):
+            active_rev_index = len(revisions) - 1
+        active_rev = revisions[active_rev_index]
 
         response_data = {
             "id": str(doc_metadata.get('_id')),
             "doc_number": doc_metadata.get('doc_number'),
             "filename": active_rev.get('filename'),
-            "uploadDate": doc_metadata.get('created_at').isoformat(),
+            "uploadDate": doc_metadata.get('created_at').isoformat() if doc_metadata.get('created_at') else None,
             "status": doc_metadata.get('status'),
-            "version": f"{doc_metadata.get('major_version')}.{doc_metadata.get('minor_version')}",
-            "major_version": doc_metadata.get('major_version'),
-            "minor_version": doc_metadata.get('minor_version'),
+            "version": f"{doc_metadata.get('major_version', 0)}.{doc_metadata.get('minor_version', 0)}",
+            "major_version": doc_metadata.get('major_version', 0),
+            "minor_version": doc_metadata.get('minor_version', 0),
             "author_username": doc_metadata.get('author_username', 'Unknown'),
-            "author_id": str(doc_metadata.get('author_id')),
+            "author_id": str(doc_metadata.get('author_id')) if doc_metadata.get('author_id') else None,
             "lineage_id": doc_metadata.get('lineage_id'),
             "tmf_metadata": doc_metadata.get('tmf_metadata', {}),
             "current_stage": doc_metadata.get('current_stage')
         }
         
-        # Convert workflow data
-        if 'qc_reviewers' in doc_metadata:
+        # ✅ QC REVIEWERS - SAFE CONVERSION
+        if 'qc_reviewers' in doc_metadata and doc_metadata['qc_reviewers']:
             qc_reviewers = []
             for reviewer in doc_metadata['qc_reviewers']:
-                qc_reviewers.append({
-                    'user_id': str(reviewer['user_id']),
-                    'status': reviewer['status'],
-                    'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
-                    'comment': reviewer.get('comment', '')
-                })
+                if 'user_id' in reviewer and reviewer['user_id']:
+                    qc_reviewers.append({
+                        'user_id': str(reviewer['user_id']),
+                        'status': reviewer.get('status', 'Pending'),
+                        'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
+                        'comment': reviewer.get('comment', '')
+                    })
             response_data['qc_reviewers'] = qc_reviewers
+        else:
+            response_data['qc_reviewers'] = []
         
-        if 'reviewers' in doc_metadata:
+        # ✅ TECHNICAL REVIEWERS - SAFE CONVERSION
+        if 'reviewers' in doc_metadata and doc_metadata['reviewers']:
             reviewers = []
             for reviewer in doc_metadata['reviewers']:
-                reviewers.append({
-                    'user_id': str(reviewer['user_id']),
-                    'status': reviewer['status'],
-                    'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
-                    'comment': reviewer.get('comment', '')
-                })
+                if 'user_id' in reviewer and reviewer['user_id']:
+                    reviewers.append({
+                        'user_id': str(reviewer['user_id']),
+                        'status': reviewer.get('status', 'Pending'),
+                        'reviewed_at': reviewer['reviewed_at'].isoformat() if reviewer.get('reviewed_at') else None,
+                        'comment': reviewer.get('comment', '')
+                    })
             response_data['reviewers'] = reviewers
+        else:
+            response_data['reviewers'] = []
         
-        if 'approver' in doc_metadata and doc_metadata['approver']:
-            response_data['approver'] = {
-                'user_id': str(doc_metadata['approver']['user_id']),
-                'status': doc_metadata['approver']['status'],
-                'approved_at': doc_metadata['approver']['approved_at'].isoformat() if doc_metadata['approver'].get('approved_at') else None,
-                'comment': doc_metadata['approver'].get('comment', ''),
-                'due_date': doc_metadata['approver'].get('due_date')
-            }
+        # ✅ APPROVER - SAFE CONVERSION
+        if 'approver' in doc_metadata and doc_metadata['approver'] and isinstance(doc_metadata['approver'], dict):
+            approver = doc_metadata['approver']
+            if 'user_id' in approver and approver['user_id']:
+                response_data['approver'] = {
+                    'user_id': str(approver['user_id']),
+                    'status': approver.get('status', 'Pending'),
+                    'approved_at': approver['approved_at'].isoformat() if approver.get('approved_at') else None,
+                    'comment': approver.get('comment', ''),
+                    'due_date': approver.get('due_date')
+                }
+            else:
+                response_data['approver'] = {}
+        else:
+            response_data['approver'] = {}
         
+        # Due dates
         response_data['qc_due_date'] = doc_metadata.get('qc_due_date')
         response_data['review_due_date'] = doc_metadata.get('review_due_date')
         
-        if 'signature' in doc_metadata:
-            response_data['signature'] = doc_metadata.get('signature')
-            response_data['signed_at'] = doc_metadata.get('signed_at').isoformat()
+        # ✅ SIGNATURE INFO - SAFE ACCESS
+        if 'signature' in doc_metadata and doc_metadata.get('signature'):
+            response_data['signature'] = doc_metadata['signature']
+            response_data['signed_at'] = doc_metadata['signed_at'].isoformat() if doc_metadata.get('signed_at') else None
             response_data['signed_by_username'] = doc_metadata.get('signed_by_username', 'Unknown')
+            response_data['signed_by_id'] = str(doc_metadata['signed_by_id']) if doc_metadata.get('signed_by_id') else None
 
-        # Process history
+        # ✅ HISTORY - SAFE CONVERSION
         history_list = []
         for entry in doc_metadata.get('history', []):
-            history_list.append({
-                "action": entry.get('action'),
-                "user": entry.get('user_username', 'Unknown'),
-                "timestamp": entry.get('timestamp').isoformat(),
-                "details": entry.get('details')
-            })
+            if entry.get('timestamp'):
+                history_list.append({
+                    "action": entry.get('action', ''),
+                    "user": entry.get('user_username', 'Unknown'),
+                    "timestamp": entry['timestamp'].isoformat(),
+                    "details": entry.get('details', '')
+                })
         response_data['history'] = history_list
 
         return jsonify(response_data), 200
@@ -165,7 +191,7 @@ def get_document_details(doc_id):
         print(f"An error occurred in get_document_details: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": "An internal server error occurred"}), 500
+        return jsonify({"error": f"An internal server error occurred: {str(e)}"}), 500
 
     
 

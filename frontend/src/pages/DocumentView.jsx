@@ -21,6 +21,7 @@ import MetadataPanel from "../components/MetadataPanel";
 import UploadRevisionModal from "../components/UploadRevisionModal";
 import RecallModal from "../components/RecallModal";
 import SkipQcModal from "../components/SkipQcModal";
+import UploadCorrectedFileModal from "../components/UploadCorrectedFileModal";
 import { API_BASE_URL } from "../utils/api";
 
 function DocumentView() {
@@ -45,6 +46,8 @@ function DocumentView() {
   const [showUploadRevisionModal, setShowUploadRevisionModal] = useState(false);
   const [showRecallModal, setShowRecallModal] = useState(false);
   const [isSkipQcModalOpen, setIsSkipQcModalOpen] = useState(false);
+  const [uploadCorrectedFileModalOpen, setUploadCorrectedFileModalOpen] =
+    useState(false);
 
   const fetchAllDocumentData = useCallback(async () => {
     try {
@@ -200,6 +203,9 @@ function DocumentView() {
           onOpenUploadRevisionModal={() => setShowUploadRevisionModal(true)}
           onOpenRecallModal={() => setShowRecallModal(true)}
           onOpenSkipQcModal={() => setIsSkipQcModalOpen(true)}
+          onOpenUploadCorrectedFileModal={() =>
+            setUploadCorrectedFileModalOpen(true)
+          }
         />
       </div>
 
@@ -284,6 +290,13 @@ function DocumentView() {
         onClose={() => setIsSkipQcModalOpen(false)}
         document={document}
         onSubmitSuccess={handleActionSuccess}
+      />
+
+      <UploadCorrectedFileModal
+        isOpen={uploadCorrectedFileModalOpen}
+        onClose={() => setUploadCorrectedFileModalOpen(false)}
+        document={document}
+        onUploadSuccess={handleActionSuccess}
       />
     </div>
   );

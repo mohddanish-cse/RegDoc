@@ -299,84 +299,153 @@ def technical_review(doc_id):
             return jsonify({"error": "Document or user not found"}), 404
 
         if doc['status'] != 'In Review':
-            return jsonify({"error": "Document is not in review stage"}), 400
+            return jsonify({"error": "Document is not in review"}), 400
 
         data = request.get_json()
-        decision = data.get('decision')  # 'Approved', 'ChangesRequested', 'Rejected'
+        decision = data.get('decision')  # 'Approved', 'RequestChanges', 'RejectedCompletely'
         comment = data.get('comment', '')
 
-        if decision not in ['Approved', 'ChangesRequested', 'Rejected']:
+        if decision not in ['Approved', 'RequestChanges', 'RejectedCompletely']:
             return jsonify({"error": "Invalid decision"}), 400
 
-        reviewers = doc.get('reviewers', [])
-        reviewer_idx = next((i for i, r in enumerate(reviewers) if r['user_id'] == user_id), None)
+        # Handle Request Changes
+        if decision == 'RequestChanges':
+            db.documents.update_one(
+                {'_id': ObjectId(doc_id)},
+                {'$set': {
+                    'status': 'Under Revision',
+                    f'technical_reviews.{str(user_id)}.status': 'RequestChanges',
+                    f'technical_reviews.{str(user_id)}.comment': comment,
+                    f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
+                },
+                    '$push': {
+                        'history': {
+                            'action': 'Technical Review - Changes Requested',
+                            'user_id': user_id,
+                            'user_username': user['username'],
+                            'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                            'details': comment
+                        }
+                    }}
+            )
+            return jsonify({"message": "Changes requested - document returned to author"}), 200
 
-        if reviewer_idx is None:
-            if user['role'] == 'Admin':
-                reviewers.append({
-                    'user_id': user_id,
-                    'status': 'Pending',
-                    'reviewed_at': None,
-                    'comment': ''
-                })
-                reviewer_idx = len(reviewers) - 1
-            else:
-                return jsonify({"error": "You are not assigned as reviewer"}), 403
+        # Handle Reject Completely (Withdrawn)
+        if decision == 'RejectedCompletely':
+            db.documents.update_one(
+                {'_id': ObjectId(doc_id)},
+                {'$set': {
+                    'status': 'Withdrawn',
+                    f'technical_reviews.{str(user_id)}.status': 'RejectedCompletely',
+                    f'technical_reviews.{str(user_id)}.comment': comment,
+                    f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc),
+                    'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
+                    'withdrawn_by': user['username']
+                },
+                    '$push': {
+                        'history': {
+                            'action': 'Document Withdrawn (Rejected at Technical Review)',
+                            'user_id': user_id,
+                            'user_username': user['username'],
+                            'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                            'details': comment
+                        }
+                    }}
+            )
+            return jsonify({"message": "Document withdrawn completely"}), 200
 
-        reviewers[reviewer_idx] = {
-            'user_id': user_id,
-            'status': decision,
-            'reviewed_at': datetime.datetime.now(datetime.timezone.utc),
-            'comment': comment
-        }
-
-        if user['role'] == 'Admin':
-            if decision in ['Rejected', 'ChangesRequested']:
-                new_status = 'Rejected'
-                action_text = f"Technical Review {decision} by Admin {user['username']}"
-            else:
-                new_status = 'Review Complete'
-                action_text = f"Technical Review Approved by Admin {user['username']}"
-        else:
-            any_rejected = any(r['status'] == 'Rejected' for r in reviewers)
-            any_changes = any(r['status'] == 'ChangesRequested' for r in reviewers)
-            all_done = all(r['status'] != 'Pending' for r in reviewers)
-            all_approved = all(r['status'] == 'Approved' for r in reviewers if r['status'] != 'Pending')
-
-            if any_rejected:
-                new_status = 'Rejected'
-                action_text = f"Technical Review Rejected by {user['username']}"
-            elif any_changes:
-                new_status = 'Under Revision'
-                action_text = f"Technical Review Requested Changes by {user['username']}"
-            elif all_done and all_approved:
-                new_status = 'Review Complete'
-                action_text = "Technical Review Completed - All Approved"
-            else:
-                new_status = 'In Review'
-                action_text = f"Technical Review {decision} by {user['username']}"
-
+        # Approved - Move to Pending Approval
         db.documents.update_one(
             {'_id': ObjectId(doc_id)},
             {'$set': {
-                'status': new_status,
-                'reviewers': reviewers
+                'status': 'Pending Approval',
+                f'technical_reviews.{str(user_id)}.status': 'Approved',
+                f'technical_reviews.{str(user_id)}.comment': comment,
+                f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
             },
-             '$push': {
-                 'history': {
-                     'action': action_text,
-                     'user_id': user_id,
-                     'user_username': user['username'],
-                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                     'details': comment
-                 }
-             }}
+                '$push': {
+                    'history': {
+                        'action': 'Technical Review Approved',
+                        'user_id': user_id,
+                        'user_username': user['username'],
+                        'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                        'details': 'Document approved for final approval'
+                    }
+                }}
         )
-
-        return jsonify({"message": f"Review: {decision}"}), 200
+        return jsonify({"message": "Technical review approved"}), 200
 
     except Exception as e:
         print(f"Error in technical_review: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@document_workflow_blueprint.route("/<doc_id>/upload-corrected-file", methods=['POST'])
+@jwt_required()
+def upload_corrected_file(doc_id):
+    """Upload corrected file after reviewer requests changes - goes back to SAME reviewer"""
+    try:
+        user_id = ObjectId(get_jwt_identity())
+        user = db.users.find_one({'_id': user_id})
+        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+
+        if not doc or not user:
+            return jsonify({"error": "Document or user not found"}), 404
+
+        if doc['status'] != 'Under Revision':
+            return jsonify({"error": "Document is not under revision"}), 400
+
+        if doc['author_id'] != user_id:
+            return jsonify({"error": "Only the document author can upload corrections"}), 403
+
+        file = request.files.get('file')
+        if not file:
+            return jsonify({"error": "No file provided"}), 400
+
+        # Store new file in GridFS
+        file_id = fs.put(file, filename=file.filename, content_type=file.content_type)
+
+        # Increment minor version
+        new_minor_version = doc.get('minor_version', 0) + 1
+
+        # Add new revision
+        new_revision = {
+            'file_id': file_id,
+            'filename': file.filename,
+            'uploaded_by_id': user_id,
+            'uploaded_by_username': user['username'],
+            'uploaded_at': datetime.datetime.now(datetime.timezone.utc),
+            'version': f"{doc['major_version']}.{new_minor_version}",
+            'change_description': 'Corrections after reviewer feedback'
+        }
+
+        # Update document - back to "In Review" with SAME reviewers
+        db.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {
+                'status': 'In Review',
+                'minor_version': new_minor_version,
+                'active_revision': len(doc['revisions'])
+            },
+                '$push': {
+                    'revisions': new_revision,
+                    'history': {
+                        'action': 'Corrected File Uploaded',
+                        'user_id': user_id,
+                        'user_username': user['username'],
+                        'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                        'details': f'Version {doc["major_version"]}.{new_minor_version} uploaded for re-review'
+                    }
+                }}
+        )
+
+        return jsonify({
+            "message": "Corrected file uploaded - returned to reviewer",
+            "version": f"{doc['major_version']}.{new_minor_version}"
+        }), 200
+
+    except Exception as e:
+        print(f"Error uploading corrected file: {e}")
+        import traceback
         return jsonify({"error": str(e)}), 500
 
 
@@ -451,28 +520,29 @@ def final_approval(doc_id):
             return jsonify({"error": "Document is not pending approval"}), 400
 
         approver_data = doc.get('approver', {})
-        if approver_data.get('user_id') != user_id and user['role'] != 'Admin':
+        if str(approver_data.get('user_id')) != str(user_id) and user['role'] != 'Admin':
             return jsonify({"error": "You are not the assigned approver"}), 403
 
         data = request.get_json()
-        decision = data.get('decision')  # 'Approved' or 'Rejected'
+        decision = data.get('decision')
         comment = data.get('comment', '')
 
-        if decision not in ['Approved', 'Rejected']:
+        if decision not in ['Approved', 'RejectedWithRevisions', 'RejectedCompletely']:
             return jsonify({"error": "Invalid decision"}), 400
 
-        if decision == 'Rejected':
+        # Handle Reject with Revisions
+        if decision == 'RejectedWithRevisions':
             db.documents.update_one(
                 {'_id': ObjectId(doc_id)},
                 {'$set': {
-                    'status': 'Draft',
-                    'approver.status': 'Rejected',
+                    'status': 'Approval Rejected',
+                    'approver.status': 'RejectedWithRevisions',
                     'approver.comment': comment,
                     'approver.approved_at': datetime.datetime.now(datetime.timezone.utc)
                 },
                     '$push': {
                         'history': {
-                            'action': 'Final Approval Rejected',
+                            'action': 'Final Approval Rejected (Revisions Required)',
                             'user_id': user_id,
                             'user_username': user['username'],
                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
@@ -480,21 +550,70 @@ def final_approval(doc_id):
                         }
                     }}
             )
-            return jsonify({"message": "Document rejected"}), 200
+            return jsonify({"message": "Document rejected - revisions required"}), 200
 
-        # Approved - Apply digital signature and update version
-        active_rev = doc['revisions'][doc.get('active_revision', 0)]
-        file_data = fs.get(active_rev['file_id']).read()
-        signature = sign_data(user['private_key'], file_data)
+        # Handle Reject Completely (Withdrawn)
+        if decision == 'RejectedCompletely':
+            db.documents.update_one(
+                {'_id': ObjectId(doc_id)},
+                {'$set': {
+                    'status': 'Withdrawn',
+                    'approver.status': 'RejectedCompletely',
+                    'approver.comment': comment,
+                    'approver.approved_at': datetime.datetime.now(datetime.timezone.utc),
+                    'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
+                    'withdrawn_by': user['username']
+                },
+                    '$push': {
+                        'history': {
+                            'action': 'Document Withdrawn (Completely Rejected)',
+                            'user_id': user_id,
+                            'user_username': user['username'],
+                            'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                            'details': comment
+                        }
+                    }}
+            )
+            return jsonify({"message": "Document withdrawn completely"}), 200
 
+        # ✅ APPROVED - Apply digital signature
+        try:
+            # Get revisions safely
+            revisions = doc.get('revisions', [])
+            if not revisions:
+                return jsonify({"error": "Document has no file revisions"}), 400
+            
+            active_rev_index = doc.get('active_revision', len(revisions) - 1)
+            if active_rev_index >= len(revisions):
+                active_rev_index = len(revisions) - 1
+            
+            active_rev = revisions[active_rev_index]
+            
+            # Get file from GridFS
+            file_data = fs.get(active_rev['file_id']).read()
+            
+            # Sign with user's private key
+            signature = sign_data(user['private_key'], file_data)
+            
+        except Exception as sig_error:
+            print(f"Signature error: {sig_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to sign document: {str(sig_error)}"}), 500
+
+        # Update document to Approved status
+        new_major_version = doc.get('major_version', 0) + 1
+        
         db.documents.update_one(
             {'_id': ObjectId(doc_id)},
             {'$set': {
                 'status': 'Approved',
                 'signature': signature,
+                'signed_by_id': user_id,
                 'signed_by_username': user['username'],
+                'signed_by_public_key': user['public_key'],
                 'signed_at': datetime.datetime.now(datetime.timezone.utc),
-                'major_version': doc['major_version'] + 1,
+                'major_version': new_major_version,
                 'minor_version': 0,
                 'approver.status': 'Approved',
                 'approver.comment': comment,
@@ -506,15 +625,21 @@ def final_approval(doc_id):
                         'user_id': user_id,
                         'user_username': user['username'],
                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                        'details': f"Document digitally signed. Version updated to {doc['major_version'] + 1}.0"
+                        'details': f"Document digitally signed. Version updated to {new_major_version}.0. {comment}"
                     }
                 }}
         )
-        return jsonify({"message": "Document approved and signed successfully"}), 200
+        
+        return jsonify({
+            "message": "Document approved and signed successfully",
+            "version": f"{new_major_version}.0"
+        }), 200
 
     except Exception as e:
         print(f"Error in final_approval: {e}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
 @document_workflow_blueprint.route("/<doc_id>/amend", methods=['POST'])

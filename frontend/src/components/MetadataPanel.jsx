@@ -501,6 +501,7 @@ function MetadataPanel({ document, versionHistory }) {
         )}
 
         {/* History Tab */}
+        {/* History Tab */}
         {activeTab === "history" && (
           <div className="p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -525,13 +526,14 @@ function MetadataPanel({ document, versionHistory }) {
                   <li key={version.id}>
                     <Link
                       to={`/documents/${version.id}`}
-                      className={`block p-3 transition-all border ${
+                      className={`block p-3 transition-all border rounded-lg ${
                         version.id === document.id
                           ? "bg-primary-50 border-primary-200"
                           : "hover:bg-gray-50 border-gray-200"
                       }`}
                     >
-                      <div className="flex justify-between items-center">
+                      {/* ✅ Version Number & Date */}
+                      <div className="flex justify-between items-start mb-2">
                         <div>
                           <span className="font-mono font-semibold text-sm text-gray-900">
                             v{version.version}
@@ -547,6 +549,17 @@ function MetadataPanel({ document, versionHistory }) {
                             )}
                           </span>
                         </div>
+
+                        {/* ✅ Current version indicator */}
+                        {version.id === document.id && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-primary-100 text-primary-700">
+                            Current
+                          </span>
+                        )}
+                      </div>
+
+                      {/* ✅ Status Badge - Separate row */}
+                      <div className="flex items-center gap-2">
                         <StatusBadge status={version.status} />
                       </div>
                     </Link>

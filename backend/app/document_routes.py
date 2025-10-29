@@ -95,12 +95,10 @@ def get_my_tasks():
         
         # ✅ ADMIN SEES ALL DOCUMENTS (oversight role)
         if user.get('role') == 'Admin':
-            # Get ALL documents for admin
             all_docs = list(db.documents.find({}))
             documents = all_docs
         else:
             # Regular users: only assigned documents
-            # QC assigned documents
             qc_docs = list(db.documents.find({
                 'status': 'In QC',
                 'qc_reviewers': {
@@ -111,7 +109,6 @@ def get_my_tasks():
                 }
             }))
             
-            # Technical review assigned documents
             review_docs = list(db.documents.find({
                 'status': 'In Review',
                 'reviewers': {
@@ -122,20 +119,17 @@ def get_my_tasks():
                 }
             }))
             
-            # Approval assigned documents
             approval_docs = list(db.documents.find({
                 'status': 'Pending Approval',
                 'approver.user_id': user_id,
                 'approver.status': 'Pending'
             }))
             
-            # Draft/intermediate documents authored by user
             draft_docs = list(db.documents.find({
                 'author_id': user_id,
                 'status': {'$in': ['Draft', 'QC Complete', 'Review Complete']}
             }))
             
-            # Combine all
             all_docs = qc_docs + review_docs + approval_docs + draft_docs
             
             # Remove duplicates
@@ -149,17 +143,17 @@ def get_my_tasks():
             
             documents = unique_docs
         
-        # Format response (same for all users)
+        # ✅ FORMAT RESPONSE - Convert ALL ObjectIds to strings
         for doc in documents:
+            # Convert document ID
             doc['id'] = str(doc['_id'])
             del doc['_id']
             
             # Convert author_id
-            original_author_id = doc.get('author_id')
-            if original_author_id:
-                doc['author_id'] = str(original_author_id)
+            if 'author_id' in doc and doc['author_id']:
+                doc['author_id'] = str(doc['author_id'])
                 if 'author_username' not in doc:
-                    author = db.users.find_one({'_id': original_author_id})
+                    author = db.users.find_one({'_id': ObjectId(doc['author_id'])})
                     doc['author_username'] = author['username'] if author else 'Unknown'
             
             # Ensure doc_number exists
@@ -176,7 +170,7 @@ def get_my_tasks():
                 active_rev_idx = doc.get('active_revision', 0)
                 doc['filename'] = doc['revisions'][active_rev_idx].get('filename', 'Unknown')
             
-            # ✅ Due date fields
+            # Due date fields (already ISO strings, no conversion needed)
             doc['qc_due_date'] = doc.get('qc_due_date')
             doc['review_due_date'] = doc.get('review_due_date')
             if 'approver' in doc and doc['approver']:
@@ -184,28 +178,34 @@ def get_my_tasks():
             else:
                 doc['approval_due_date'] = None
             
-            # Convert QC reviewers
+            # ✅ Convert QC reviewers
             if 'qc_reviewers' in doc:
                 for reviewer in doc['qc_reviewers']:
-                    reviewer['user_id'] = str(reviewer['user_id'])
+                    if 'user_id' in reviewer:
+                        reviewer['user_id'] = str(reviewer['user_id'])
                     if reviewer.get('reviewed_at'):
                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
             
-            # Convert technical reviewers
+            # ✅ Convert technical reviewers
             if 'reviewers' in doc:
                 for reviewer in doc['reviewers']:
-                    reviewer['user_id'] = str(reviewer['user_id'])
+                    if 'user_id' in reviewer:
+                        reviewer['user_id'] = str(reviewer['user_id'])
                     if reviewer.get('reviewed_at'):
                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
             
-            # Convert approver
+            # ✅ Convert approver
             if 'approver' in doc and doc['approver']:
                 if 'user_id' in doc['approver']:
                     doc['approver']['user_id'] = str(doc['approver']['user_id'])
                 if doc['approver'].get('approved_at'):
                     doc['approver']['approved_at'] = doc['approver']['approved_at'].isoformat()
             
-            # Convert history
+            # ✅ Convert signed_by_id (CRITICAL FIX FOR APPROVED DOCUMENTS)
+            if 'signed_by_id' in doc and doc['signed_by_id']:
+                doc['signed_by_id'] = str(doc['signed_by_id'])
+            
+            # ✅ Convert history
             if 'history' in doc:
                 for entry in doc['history']:
                     if 'user_id' in entry:
@@ -218,20 +218,21 @@ def get_my_tasks():
                 doc['created_at'] = doc['created_at'].isoformat()
             if 'signed_at' in doc:
                 doc['signed_at'] = doc['signed_at'].isoformat()
+            if 'withdrawn_at' in doc:
+                doc['withdrawn_at'] = doc['withdrawn_at'].isoformat()
             
-            # Convert revisions
+            # ✅ Convert revisions
             if 'revisions' in doc:
                 for rev in doc['revisions']:
                     if 'file_id' in rev:
                         rev['file_id'] = str(rev['file_id'])
+                    if 'uploaded_by_id' in rev:
+                        rev['uploaded_by_id'] = str(rev['uploaded_by_id'])
                     if 'uploaded_at' in rev:
                         rev['uploaded_at'] = rev['uploaded_at'].isoformat()
         
-        
         # ✅ SORT DOCUMENTS BY DUE DATE (MOST URGENT FIRST)
-        # Priority: 1. Overdue, 2. Due soon, 3. Future dates, 4. No due date
         def get_sort_key(doc):
-            # Get the relevant due date based on status
             status = doc.get('status', '')
             due_date = None
             
@@ -242,33 +243,24 @@ def get_my_tasks():
             elif status == 'Pending Approval':
                 due_date = doc.get('approval_due_date')
             
-            # If no due date, put at the end
             if not due_date:
-                return (3, None)  # Lowest priority
+                return (3, "9999-12-31")
             
-            # Parse the date
             from datetime import datetime
             try:
                 due = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
                 now = datetime.now(due.tzinfo) if due.tzinfo else datetime.now()
-                
-                # Calculate days difference
                 days_diff = (due - now).days
                 
-                # Priority groups:
-                # 0 = Overdue (most urgent)
-                # 1 = Due today or tomorrow
-                # 2 = Future dates
                 if days_diff < 0:
-                    return (0, due)  # Overdue - highest priority
+                    return (0, due_date)  # Overdue
                 elif days_diff <= 1:
-                    return (1, due)  # Due soon
+                    return (1, due_date)  # Due soon
                 else:
-                    return (2, due)  # Future
+                    return (2, due_date)  # Future
             except:
-                return (3, None)  # Invalid date format
+                return (3, "9999-12-31")
         
-        # Sort documents (most urgent first)
         documents.sort(key=get_sort_key)
 
         return jsonify(documents), 200
@@ -278,4 +270,3 @@ def get_my_tasks():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-

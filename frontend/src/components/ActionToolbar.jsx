@@ -16,6 +16,7 @@ function ActionToolbar({
   onOpenUploadRevisionModal,
   onOpenRecallModal,
   onOpenSkipQcModal,
+  onOpenUploadCorrectedFileModal,
 }) {
   if (!document || !user) return null;
 
@@ -57,15 +58,16 @@ function ActionToolbar({
   const showArchive =
     ["Approved", "Superseded"].includes(status) && (isArchivist || isAdmin);
 
-  // ✅ NEW: Upload Revised File button visibility
   const showUploadRevision =
     ["QC Rejected", "Review Rejected", "Approval Rejected"].includes(status) &&
     (isAuthor || isAdmin);
 
-  // ✅ NEW: Recall button visibility
   const showRecall =
     ["In QC", "In Review", "Pending Approval"].includes(status) &&
     (isAuthor || isAdmin);
+
+  const showUploadCorrectedFile =
+    status === "Under Revision" && (isAuthor || isAdmin);
 
   const hasAnyAction =
     showSubmitQc ||
@@ -77,6 +79,7 @@ function ActionToolbar({
     showAmend ||
     showArchive ||
     showUploadRevision ||
+    showUploadCorrectedFile ||
     showRecall;
 
   // Get due date for display
@@ -120,6 +123,29 @@ function ActionToolbar({
             </div>
           </div>
         </div>
+
+        {/* ✅ NEW: Upload Corrected File for "Under Revision" */}
+        {showUploadCorrectedFile && (
+          <button
+            onClick={onOpenUploadCorrectedFileModal}
+            className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white text-sm font-semibold rounded-lg hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-all duration-200"
+          >
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            Upload Corrected File
+          </button>
+        )}
 
         <div className="flex flex-wrap gap-2 justify-end">
           {/* ✅ NEW: Upload Revised File button */}
