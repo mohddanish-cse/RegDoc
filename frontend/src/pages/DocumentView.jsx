@@ -35,6 +35,9 @@ function DocumentView() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  const [canAmend, setCanAmend] = useState(false);
+  const [amendmentInfo, setAmendmentInfo] = useState(null);
+
   const [isSubmitQcModalOpen, setIsSubmitQcModalOpen] = useState(false);
   const [isQcModalOpen, setIsQcModalOpen] = useState(false);
   const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
@@ -70,6 +73,33 @@ function DocumentView() {
   useEffect(() => {
     fetchAllDocumentData();
   }, [fetchAllDocumentData]);
+
+  useEffect(() => {
+    const checkAmendmentStatus = async () => {
+      if (document?.status === "Approved") {
+        try {
+          const response = await apiCall(
+            `/documents/${document.id}/can-amend`,
+            "GET"
+          );
+          setCanAmend(response.can_amend);
+          if (!response.can_amend) {
+            setAmendmentInfo(response);
+          }
+        } catch (error) {
+          console.error("Error checking amendment status:", error);
+          setCanAmend(false);
+        }
+      } else {
+        setCanAmend(false);
+        setAmendmentInfo(null);
+      }
+    };
+
+    if (document) {
+      checkAmendmentStatus();
+    }
+  }, [document]);
 
   const closeModal = () => {
     setIsSubmitQcModalOpen(false);
@@ -193,6 +223,8 @@ function DocumentView() {
             approver: document.approver || {},
           }}
           user={currentUser}
+          canAmend={canAmend}
+          amendmentInfo={amendmentInfo}
           onOpenSubmitQcModal={() => setIsSubmitQcModalOpen(true)}
           onOpenSubmitReviewModal={() => setIsSubmitReviewModalOpen(true)}
           onOpenSubmitApprovalModal={() => setIsSubmitApprovalModalOpen(true)}

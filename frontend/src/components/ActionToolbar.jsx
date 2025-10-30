@@ -1,3 +1,4 @@
+// frontend/src/components/ActionToolbar.jsx
 import React from "react";
 import DueDateBadge from "./DueDateBadge";
 import { getDueDateFromDocument } from "../utils/dateUtils";
@@ -5,6 +6,8 @@ import { getDueDateFromDocument } from "../utils/dateUtils";
 function ActionToolbar({
   document,
   user,
+  canAmend, // ✅ NEW prop
+  amendmentInfo, // ✅ NEW prop
   onOpenSubmitQcModal,
   onOpenSubmitReviewModal,
   onOpenSubmitApprovalModal,
@@ -54,7 +57,10 @@ function ActionToolbar({
     status === "Review Complete" && (isAuthor || isAdmin);
   const showFinalApproval =
     status === "Pending Approval" && (isApprover || isAdmin);
-  const showAmend = status === "Approved";
+
+  // ✅ UPDATED: Use canAmend prop instead of just checking status
+  const showAmend = status === "Approved" && canAmend;
+
   const showArchive =
     ["Approved", "Superseded"].includes(status) && (isArchivist || isAdmin);
 
@@ -80,7 +86,8 @@ function ActionToolbar({
     showArchive ||
     showUploadRevision ||
     showUploadCorrectedFile ||
-    showRecall;
+    showRecall ||
+    (status === "Approved" && !canAmend); // ✅ Show toolbar even if amendment blocked
 
   // Get due date for display
   const dueDate = getDueDateFromDocument(document);
@@ -89,6 +96,50 @@ function ActionToolbar({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+      {/* ✅ NEW: Amendment Blocked Info Banner */}
+      {status === "Approved" && !canAmend && amendmentInfo && (
+        <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <svg
+            className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-blue-900">
+              Amendment in Progress
+            </p>
+            <p className="text-sm text-blue-700 mt-1">{amendmentInfo.reason}</p>
+            {amendmentInfo.existing_amendment && (
+              <a
+                href={`/documents/${amendmentInfo.existing_amendment.id}`}
+                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium mt-2 inline-flex items-center gap-1 transition-colors"
+              >
+                View {amendmentInfo.existing_amendment.version} in progress
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
           <div className="flex items-center justify-center w-10 h-10 bg-accent-50 rounded-lg">
@@ -124,7 +175,7 @@ function ActionToolbar({
           </div>
         </div>
 
-        {/* ✅ NEW: Upload Corrected File for "Under Revision" */}
+        {/* ✅ Upload Corrected File for "Under Revision" */}
         {showUploadCorrectedFile && (
           <button
             onClick={onOpenUploadCorrectedFileModal}
@@ -148,7 +199,7 @@ function ActionToolbar({
         )}
 
         <div className="flex flex-wrap gap-2 justify-end">
-          {/* ✅ NEW: Upload Revised File button */}
+          {/* ✅ Upload Revised File button */}
           {showUploadRevision && (
             <button
               onClick={onOpenUploadRevisionModal}
@@ -171,7 +222,7 @@ function ActionToolbar({
             </button>
           )}
 
-          {/* ✅ NEW: Recall button */}
+          {/* ✅ Recall button */}
           {showRecall && (
             <button
               onClick={onOpenRecallModal}
@@ -348,6 +399,7 @@ function ActionToolbar({
             </button>
           )}
 
+          {/* ✅ Amend button - only shown if allowed */}
           {showAmend && (
             <button
               onClick={onOpenAmendModal}

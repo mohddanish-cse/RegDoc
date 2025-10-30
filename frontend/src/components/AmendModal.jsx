@@ -6,9 +6,20 @@ import { apiCall } from "../utils/api";
 import toast from "react-hot-toast";
 
 function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
-  const [amendmentType, setAmendmentType] = useState("minor");
   const [reason, setReason] = useState("");
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error("File size must be less than 50MB");
+        return;
+      }
+      setUploadedFile(file);
+    }
+  };
 
   const handleAmend = async () => {
     if (!reason.trim()) {
@@ -16,31 +27,45 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
       return;
     }
 
+    if (!uploadedFile) {
+      toast.error("Please upload the amended document");
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = toast.loading("Creating amendment...");
 
     try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+      formData.append("reason", reason);
+
       const response = await apiCall(
         `/documents/${document.id}/amend`,
         "POST",
-        {
-          amendment_type: amendmentType,
-          reason: reason,
-        }
+        formData,
+        true // multipart
       );
 
       toast.success("Amendment created successfully!", { id: toastId });
       onAmendSuccess(response.new_document_id);
     } catch (err) {
-      toast.error(`Amendment failed: ${err.message}`, { id: toastId });
+      if (err.message.includes("already in progress")) {
+        toast.error(err.message, {
+          id: toastId,
+          duration: 5000, // Show longer
+        });
+      } else {
+        toast.error(`Amendment failed: ${err.message}`, { id: toastId });
+      }
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
     if (!isSubmitting) {
-      setAmendmentType("minor");
       setReason("");
+      setUploadedFile(null);
       onClose();
     }
   };
@@ -79,7 +104,8 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
                   Create Amendment
                 </Dialog.Title>
                 <p className="text-indigo-100 text-sm mt-0.5">
-                  Current Version: v{document.version}
+                  Current: v{document.version} (Approved) → New Draft: v
+                  {document.major_version}.{document.minor_version + 1}
                 </p>
               </div>
               <button
@@ -106,107 +132,102 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
 
           {/* Content */}
           <div className="px-6 py-6 space-y-5">
-            {/* Amendment Type Selection */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Amendment Type <span className="text-error-600">*</span>
-              </label>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setAmendmentType("minor")}
-                  disabled={isSubmitting}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    amendmentType === "minor"
-                      ? "border-indigo-500 bg-indigo-50 shadow-sm"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}
+            {/* Info Box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex gap-3">
+                <svg
+                  className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            amendmentType === "minor"
-                              ? "border-indigo-600"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {amendmentType === "minor" && (
-                            <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
-                          )}
-                        </div>
-                        <span className="font-semibold text-gray-900">
-                          Minor Amendment
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1 ml-6">
-                        Small changes (v{document.major_version}.
-                        {document.minor_version + 1})
-                      </p>
-                    </div>
-                    {amendmentType === "minor" && (
-                      <svg
-                        className="w-5 h-5 text-indigo-600"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setAmendmentType("major")}
-                  disabled={isSubmitting}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    amendmentType === "major"
-                      ? "border-indigo-500 bg-indigo-50 shadow-sm"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                            amendmentType === "major"
-                              ? "border-indigo-600"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {amendmentType === "major" && (
-                            <div className="w-2 h-2 rounded-full bg-indigo-600"></div>
-                          )}
-                        </div>
-                        <span className="font-semibold text-gray-900">
-                          Major Amendment
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1 ml-6">
-                        Significant changes (v{document.major_version + 1}.0)
-                      </p>
-                    </div>
-                    {amendmentType === "major" && (
-                      <svg
-                        className="w-5 h-5 text-indigo-600"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <div className="text-sm text-blue-800">
+                  <p className="font-semibold mb-1">Amendment Process</p>
+                  <ul className="space-y-1 text-blue-700">
+                    <li>
+                      • Creates new draft version v{document.major_version}.
+                      {document.minor_version + 1}
+                    </li>
+                    <li>
+                      • Previous approved version (v{document.version}) remains
+                      active
+                    </li>
+                    <li>• New draft enters approval workflow</li>
+                    <li>
+                      • Upon approval, becomes v{document.major_version + 1}.0
+                    </li>
+                  </ul>
+                </div>
               </div>
+            </div>
+
+            {/* File Upload */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Upload Amended Document{" "}
+                <span className="text-error-600">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting}
+                  className="hidden"
+                  id="file-upload"
+                  accept=".pdf,.doc,.docx"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+                >
+                  {uploadedFile ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <svg
+                        className="w-5 h-5 text-green-600"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span className="font-medium text-gray-700">
+                        {uploadedFile.name}
+                      </span>
+                      <span className="text-gray-500">
+                        ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
+                      </svg>
+                      <span>Click to upload or drag and drop</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Supported formats: PDF, DOC, DOCX (Max 50MB)
+              </p>
             </div>
 
             {/* Reason Textarea */}
@@ -223,7 +244,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
                 onChange={(e) => setReason(e.target.value)}
                 rows={4}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"
-                placeholder="Explain why this amendment is needed..."
+                placeholder="Explain why this amendment is needed (e.g., regulatory requirement, error correction, content update)..."
                 disabled={isSubmitting}
                 required
               />
@@ -241,7 +262,7 @@ function AmendModal({ isOpen, onClose, document, onAmendSuccess }) {
             </button>
             <button
               onClick={handleAmend}
-              disabled={isSubmitting || !reason.trim()}
+              disabled={isSubmitting || !reason.trim() || !uploadedFile}
               className="px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
             >
               {isSubmitting ? (
