@@ -10,6 +10,7 @@ import {
 import { apiCall } from "../utils/api";
 import PdfViewer from "../components/PdfViewer";
 import ActionToolbar from "../components/ActionToolbar";
+import DocumentMenu from "../components/DocumentMenu";
 import SubmitQcModal from "../components/SubmitQcModal";
 import QcModal from "../components/QcModal";
 import SubmitReviewModal from "../components/SubmitReviewModal";
@@ -17,6 +18,9 @@ import ReviewModal from "../components/ReviewModal";
 import SubmitApprovalModal from "../components/SubmitApprovalModal";
 import ApprovalModal from "../components/ApprovalModal";
 import AmendModal from "../components/AmendModal";
+import WithdrawModal from "../components/WithdrawModal";
+import MarkObsoleteModal from "../components/MarkObsoleteModal";
+import ArchiveModal from "../components/ArchiveModal";
 import MetadataPanel from "../components/MetadataPanel";
 import UploadRevisionModal from "../components/UploadRevisionModal";
 import RecallModal from "../components/RecallModal";
@@ -38,6 +42,7 @@ function DocumentView() {
   const [canAmend, setCanAmend] = useState(false);
   const [amendmentInfo, setAmendmentInfo] = useState(null);
 
+  // Workflow Modals
   const [isSubmitQcModalOpen, setIsSubmitQcModalOpen] = useState(false);
   const [isQcModalOpen, setIsQcModalOpen] = useState(false);
   const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
@@ -51,6 +56,11 @@ function DocumentView() {
   const [isSkipQcModalOpen, setIsSkipQcModalOpen] = useState(false);
   const [uploadCorrectedFileModalOpen, setUploadCorrectedFileModalOpen] =
     useState(false);
+
+  // Lifecycle Modals (NEW)
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isMarkObsoleteModalOpen, setIsMarkObsoleteModalOpen] = useState(false);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
   const fetchAllDocumentData = useCallback(async () => {
     try {
@@ -109,6 +119,9 @@ function DocumentView() {
     setIsSubmitApprovalModalOpen(false);
     setIsApprovalModalOpen(false);
     setIsAmendModalOpen(false);
+    setIsWithdrawModalOpen(false);
+    setIsMarkObsoleteModalOpen(false);
+    setIsArchiveModalOpen(false);
   };
 
   const handleActionSuccess = () => {
@@ -185,29 +198,42 @@ function DocumentView() {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header Bar - Document Title & Back Link */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-        <Link
-          to={backButton.path}
-          className="text-gray-600 hover:text-primary-600 transition-colors flex-shrink-0"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {/* Header Bar - Document Title, Back Link & Document Menu */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <Link
+            to={backButton.path}
+            className="text-gray-600 hover:text-primary-600 transition-colors flex-shrink-0"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </Link>
-        <h1 className="text-lg font-bold text-gray-900 truncate flex-1">
-          {document.filename}
-        </h1>
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </Link>
+          <h1 className="text-lg font-bold text-gray-900 truncate">
+            {document.filename}
+          </h1>
+        </div>
+
+        {/* Document Menu (⋮) */}
+        <DocumentMenu
+          document={document}
+          user={currentUser}
+          canAmend={canAmend}
+          onWithdraw={() => setIsWithdrawModalOpen(true)}
+          onMarkObsolete={() => setIsMarkObsoleteModalOpen(true)}
+          onArchive={() => setIsArchiveModalOpen(true)}
+          onAmend={() => setIsAmendModalOpen(true)}
+        />
       </div>
 
       {/* Workflow Action Toolbar */}
@@ -257,7 +283,7 @@ function DocumentView() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Workflow Modals */}
       <SubmitQcModal
         isOpen={isSubmitQcModalOpen}
         onClose={closeModal}
@@ -329,6 +355,28 @@ function DocumentView() {
         onClose={() => setUploadCorrectedFileModalOpen(false)}
         document={document}
         onUploadSuccess={handleActionSuccess}
+      />
+
+      {/* Lifecycle Modals (NEW) */}
+      <WithdrawModal
+        isOpen={isWithdrawModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSuccess={handleActionSuccess}
+      />
+
+      <MarkObsoleteModal
+        isOpen={isMarkObsoleteModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSuccess={handleActionSuccess}
+      />
+
+      <ArchiveModal
+        isOpen={isArchiveModalOpen}
+        onClose={closeModal}
+        document={document}
+        onSuccess={handleActionSuccess}
       />
     </div>
   );

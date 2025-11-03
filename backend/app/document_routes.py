@@ -149,11 +149,15 @@ def get_my_tasks():
             doc['id'] = str(doc['_id'])
             del doc['_id']
             
+            # ✅ FIX: Store original author_id ObjectId before converting
+            original_author_id = doc.get('author_id')
+            
             # Convert author_id
             if 'author_id' in doc and doc['author_id']:
                 doc['author_id'] = str(doc['author_id'])
                 if 'author_username' not in doc:
-                    author = db.users.find_one({'_id': ObjectId(doc['author_id'])})
+                    # Use original ObjectId, not converted string
+                    author = db.users.find_one({'_id': original_author_id})
                     doc['author_username'] = author['username'] if author else 'Unknown'
             
             # Ensure doc_number exists
@@ -181,54 +185,70 @@ def get_my_tasks():
             # ✅ Convert QC reviewers
             if 'qc_reviewers' in doc:
                 for reviewer in doc['qc_reviewers']:
-                    if 'user_id' in reviewer:
+                    if 'user_id' in reviewer and isinstance(reviewer['user_id'], ObjectId):
                         reviewer['user_id'] = str(reviewer['user_id'])
-                    if reviewer.get('reviewed_at'):
+                    if reviewer.get('reviewed_at') and hasattr(reviewer['reviewed_at'], 'isoformat'):
                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
             
             # ✅ Convert technical reviewers
             if 'reviewers' in doc:
                 for reviewer in doc['reviewers']:
-                    if 'user_id' in reviewer:
+                    if 'user_id' in reviewer and isinstance(reviewer['user_id'], ObjectId):
                         reviewer['user_id'] = str(reviewer['user_id'])
-                    if reviewer.get('reviewed_at'):
+                    if reviewer.get('reviewed_at') and hasattr(reviewer['reviewed_at'], 'isoformat'):
                         reviewer['reviewed_at'] = reviewer['reviewed_at'].isoformat()
             
             # ✅ Convert approver
             if 'approver' in doc and doc['approver']:
-                if 'user_id' in doc['approver']:
+                if 'user_id' in doc['approver'] and isinstance(doc['approver']['user_id'], ObjectId):
                     doc['approver']['user_id'] = str(doc['approver']['user_id'])
-                if doc['approver'].get('approved_at'):
+                if doc['approver'].get('approved_at') and hasattr(doc['approver'].get('approved_at'), 'isoformat'):
                     doc['approver']['approved_at'] = doc['approver']['approved_at'].isoformat()
             
             # ✅ Convert signed_by_id (CRITICAL FIX FOR APPROVED DOCUMENTS)
-            if 'signed_by_id' in doc and doc['signed_by_id']:
+            if 'signed_by_id' in doc and isinstance(doc['signed_by_id'], ObjectId):
                 doc['signed_by_id'] = str(doc['signed_by_id'])
+            
+            # ✅ Convert withdrawn_by_user_id
+            if 'withdrawn_by_user_id' in doc and isinstance(doc['withdrawn_by_user_id'], ObjectId):
+                doc['withdrawn_by_user_id'] = str(doc['withdrawn_by_user_id'])
+            
+            # ✅ Convert archived_by_user_id
+            if 'archived_by_user_id' in doc and isinstance(doc['archived_by_user_id'], ObjectId):
+                doc['archived_by_user_id'] = str(doc['archived_by_user_id'])
+            
+            # ✅ Convert obsolete_by_user_id
+            if 'obsolete_by_user_id' in doc and isinstance(doc['obsolete_by_user_id'], ObjectId):
+                doc['obsolete_by_user_id'] = str(doc['obsolete_by_user_id'])
             
             # ✅ Convert history
             if 'history' in doc:
                 for entry in doc['history']:
-                    if 'user_id' in entry:
+                    if 'user_id' in entry and isinstance(entry['user_id'], ObjectId):
                         entry['user_id'] = str(entry['user_id'])
-                    if 'timestamp' in entry:
+                    if 'timestamp' in entry and hasattr(entry['timestamp'], 'isoformat'):
                         entry['timestamp'] = entry['timestamp'].isoformat()
             
             # Convert dates
-            if 'created_at' in doc:
+            if 'created_at' in doc and hasattr(doc['created_at'], 'isoformat'):
                 doc['created_at'] = doc['created_at'].isoformat()
-            if 'signed_at' in doc:
+            if 'signed_at' in doc and hasattr(doc['signed_at'], 'isoformat'):
                 doc['signed_at'] = doc['signed_at'].isoformat()
-            if 'withdrawn_at' in doc:
+            if 'withdrawn_at' in doc and hasattr(doc['withdrawn_at'], 'isoformat'):
                 doc['withdrawn_at'] = doc['withdrawn_at'].isoformat()
+            if 'archived_at' in doc and hasattr(doc['archived_at'], 'isoformat'):
+                doc['archived_at'] = doc['archived_at'].isoformat()
+            if 'obsolete_at' in doc and hasattr(doc['obsolete_at'], 'isoformat'):
+                doc['obsolete_at'] = doc['obsolete_at'].isoformat()
             
             # ✅ Convert revisions
             if 'revisions' in doc:
                 for rev in doc['revisions']:
-                    if 'file_id' in rev:
+                    if 'file_id' in rev and isinstance(rev['file_id'], ObjectId):
                         rev['file_id'] = str(rev['file_id'])
-                    if 'uploaded_by_id' in rev:
+                    if 'uploaded_by_id' in rev and isinstance(rev['uploaded_by_id'], ObjectId):
                         rev['uploaded_by_id'] = str(rev['uploaded_by_id'])
-                    if 'uploaded_at' in rev:
+                    if 'uploaded_at' in rev and hasattr(rev['uploaded_at'], 'isoformat'):
                         rev['uploaded_at'] = rev['uploaded_at'].isoformat()
         
         # ✅ SORT DOCUMENTS BY DUE DATE (MOST URGENT FIRST)

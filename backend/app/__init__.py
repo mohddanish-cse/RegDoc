@@ -1,7 +1,7 @@
 # backend/app/__init__.py
 
 import os
-from flask import Flask
+from flask import Flask, app
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
@@ -51,5 +51,8 @@ def create_app():
     
     from .document_workflow_routes import document_workflow_blueprint
     app.register_blueprint(document_workflow_blueprint, url_prefix='/api/documents')
+
+    from .document_lifecycle_routes import document_lifecycle_blueprint
+    app.register_blueprint(document_lifecycle_blueprint, url_prefix='/api/documents')
 
     return app

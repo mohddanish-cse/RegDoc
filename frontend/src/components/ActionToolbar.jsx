@@ -6,8 +6,8 @@ import { getDueDateFromDocument } from "../utils/dateUtils";
 function ActionToolbar({
   document,
   user,
-  canAmend, // ✅ NEW prop
-  amendmentInfo, // ✅ NEW prop
+  canAmend,
+  amendmentInfo,
   onOpenSubmitQcModal,
   onOpenSubmitReviewModal,
   onOpenSubmitApprovalModal,
@@ -15,7 +15,6 @@ function ActionToolbar({
   onOpenReviewModal,
   onOpenApprovalModal,
   onOpenAmendModal,
-  onArchiveDocument,
   onOpenUploadRevisionModal,
   onOpenRecallModal,
   onOpenSkipQcModal,
@@ -34,7 +33,6 @@ function ActionToolbar({
 
   const isAuthor = author_id === userId;
   const isAdmin = role === "Admin";
-  const isArchivist = role === "Archivist";
 
   const isQcReviewer = qc_reviewers.some(
     (r) => r.user_id === userId && r.status === "Pending"
@@ -58,12 +56,6 @@ function ActionToolbar({
   const showFinalApproval =
     status === "Pending Approval" && (isApprover || isAdmin);
 
-  // ✅ UPDATED: Use canAmend prop instead of just checking status
-  const showAmend = status === "Approved" && canAmend;
-
-  const showArchive =
-    ["Approved", "Superseded"].includes(status) && (isArchivist || isAdmin);
-
   const showUploadRevision =
     ["QC Rejected", "Review Rejected", "Approval Rejected"].includes(status) &&
     (isAuthor || isAdmin);
@@ -82,12 +74,10 @@ function ActionToolbar({
     showTechReview ||
     showSubmitApproval ||
     showFinalApproval ||
-    showAmend ||
-    showArchive ||
     showUploadRevision ||
     showUploadCorrectedFile ||
     showRecall ||
-    (status === "Approved" && !canAmend); // ✅ Show toolbar even if amendment blocked
+    (status === "Approved" && !canAmend); // Show toolbar even if amendment blocked
 
   // Get due date for display
   const dueDate = getDueDateFromDocument(document);
@@ -96,7 +86,7 @@ function ActionToolbar({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
-      {/* ✅ NEW: Amendment Blocked Info Banner */}
+      {/* ✅ Amendment Blocked Info Banner */}
       {status === "Approved" && !canAmend && amendmentInfo && (
         <div className="mb-4 flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
           <svg
@@ -396,51 +386,6 @@ function ActionToolbar({
                 />
               </svg>
               Final Approval
-            </button>
-          )}
-
-          {/* ✅ Amend button - only shown if allowed */}
-          {showAmend && (
-            <button
-              onClick={onOpenAmendModal}
-              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
-            >
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-              Create Amendment
-            </button>
-          )}
-
-          {showArchive && (
-            <button
-              onClick={onArchiveDocument}
-              className="inline-flex items-center px-4 py-2 bg-warning-600 text-white text-sm font-semibold rounded-lg hover:bg-warning-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-warning-500 transition-all duration-200"
-            >
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                />
-              </svg>
-              Archive Document
             </button>
           )}
         </div>

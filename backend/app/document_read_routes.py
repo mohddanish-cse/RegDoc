@@ -77,7 +77,6 @@ def list_documents():
         traceback.print_exc()
         return jsonify({"error": "An internal server error occurred"}), 500
 
-# backend/app/document_read_routes.py
 
 @document_read_blueprint.route("/<doc_id>", methods=['GET'])
 @jwt_required()

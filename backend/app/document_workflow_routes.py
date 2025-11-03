@@ -679,165 +679,6 @@ def final_approval(doc_id):
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
-@document_workflow_blueprint.route("/<doc_id>/amend", methods=['POST'])
-@jwt_required()
-def create_amendment(doc_id):
-    """Create amendment of approved document - Only one amendment allowed at a time"""
-    try:
-        user_id = ObjectId(get_jwt_identity())
-        user = db.users.find_one({'_id': user_id})
-        original_doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-
-        if not original_doc or not user:
-            return jsonify({"error": "Document or user not found"}), 404
-
-        # Only approved documents can be amended
-        if original_doc['status'] != 'Approved':
-            return jsonify({"error": "Only approved documents can be amended"}), 400
-
-        # ✅ NEW VALIDATION: Check if an amendment already exists and is in progress
-        existing_amendment = db.documents.find_one({
-            'amended_from': str(original_doc['_id']),
-            'status': {'$in': ['Draft', 'In QC', 'QC Complete', 'In Review', 'Review Complete', 'Pending Approval']}
-        })
-
-        if existing_amendment:
-            return jsonify({
-                "error": f"An amendment (v{existing_amendment['major_version']}.{existing_amendment['minor_version']}) is already in progress. Please complete or withdraw it before creating a new amendment.",
-                "existing_amendment_id": str(existing_amendment['_id']),
-                "existing_version": f"{existing_amendment['major_version']}.{existing_amendment['minor_version']}",
-                "existing_status": existing_amendment['status']
-            }), 400
-
-        # Get reason and file from form data (multipart)
-        reason = request.form.get('reason')
-        if not reason:
-            return jsonify({"error": "Reason for amendment is required"}), 400
-
-        # Get uploaded file
-        if 'file' not in request.files:
-            return jsonify({"error": "Amended document file is required"}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({"error": "No file selected"}), 400
-
-        # Store file in GridFS
-        file_id = fs.put(
-            file,
-            filename=file.filename,
-            content_type=file.content_type,
-            uploaded_by=user_id,
-            uploaded_at=datetime.datetime.now(datetime.timezone.utc)
-        )
-
-        # Create new document with MINOR version increment (v1.0 → v1.1)
-        new_doc = {
-            'doc_number': original_doc['doc_number'],  # Same doc number
-            'lineage_id': original_doc['lineage_id'],  # Same lineage
-            'major_version': original_doc['major_version'],  # Keep major version
-            'minor_version': original_doc.get('minor_version', 0) + 1,  # Increment minor
-            'status': 'Draft',  # Starts as Draft
-            'author_id': user_id,
-            'author_username': user['username'],
-            'created_at': datetime.datetime.now(datetime.timezone.utc),
-            'tmf_metadata': original_doc.get('tmf_metadata', {}),
-            'current_stage': None,
-            'qc_reviewers': [],
-            'reviewers': [],
-            'approver': {},
-            'revisions': [{
-                'revision_number': 0,
-                'file_id': file_id,
-                'filename': file.filename,
-                'uploaded_by_id': user_id,
-                'uploaded_by_username': user['username'],
-                'uploaded_at': datetime.datetime.now(datetime.timezone.utc)
-            }],
-            'active_revision': 0,
-            'history': [{
-                'action': 'Amendment Created',
-                'user_id': user_id,
-                'user_username': user['username'],
-                'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                'details': f"Amendment from v{original_doc['major_version']}.{original_doc.get('minor_version', 0)} - Reason: {reason}"
-            }],
-            'amendment_reason': reason,
-            'amended_from': str(original_doc['_id'])  # Reference to original
-        }
-
-        # Insert new document
-        result = db.documents.insert_one(new_doc)
-
-        # Add history to original document
-        db.documents.update_one(
-            {'_id': ObjectId(doc_id)},
-            {
-                '$push': {
-                    'history': {
-                        'action': 'Amended',
-                        'user_id': user_id,
-                        'user_username': user['username'],
-                        'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                        'details': f'Amendment created - New draft v{new_doc["major_version"]}.{new_doc["minor_version"]}. Reason: {reason}'
-                    }
-                }
-            }
-        )
-
-        return jsonify({
-            "message": "Amendment created successfully",
-            "new_document_id": str(result.inserted_id),
-            "new_version": f"{new_doc['major_version']}.{new_doc['minor_version']}"
-        }), 201
-
-    except Exception as e:
-        print(f"Error in create_amendment: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-@document_workflow_blueprint.route("/<doc_id>/can-amend", methods=['GET'])
-@jwt_required()
-def can_amend_document(doc_id):
-    """Check if a document can be amended (no amendment in progress)"""
-    try:
-        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-        
-        if not doc:
-            return jsonify({"error": "Document not found"}), 404
-        
-        # Check if document is approved
-        if doc['status'] != 'Approved':
-            return jsonify({
-                "can_amend": False,
-                "reason": "Only approved documents can be amended"
-            }), 200
-        
-        # Check if an amendment already exists and is in progress
-        existing_amendment = db.documents.find_one({
-            'amended_from': str(doc['_id']),
-            'status': {'$in': ['Draft', 'In QC', 'QC Complete', 'In Review', 'Review Complete', 'Pending Approval']}
-        })
-        
-        if existing_amendment:
-            return jsonify({
-                "can_amend": False,
-                "reason": f"Amendment v{existing_amendment['major_version']}.{existing_amendment['minor_version']} is already in progress",
-                "existing_amendment": {
-                    "id": str(existing_amendment['_id']),
-                    "version": f"{existing_amendment['major_version']}.{existing_amendment['minor_version']}",
-                    "status": existing_amendment['status']
-                }
-            }), 200
-        
-        return jsonify({"can_amend": True}), 200
-        
-    except Exception as e:
-        print(f"Error checking amendment status: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
 @document_workflow_blueprint.route("/<doc_id>/verify-signature", methods=['POST'])
 @jwt_required()
 def verify_doc_signature(doc_id):
@@ -1035,3 +876,161 @@ def archive_document(doc_id):
         print(f"Error in archive_document: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@document_workflow_blueprint.route("/<doc_id>/amend", methods=['POST'])
+@jwt_required()
+def create_amendment(doc_id):
+    """Create amendment of approved document - Only one amendment allowed at a time"""
+    try:
+        user_id = ObjectId(get_jwt_identity())
+        user = db.users.find_one({'_id': user_id})
+        original_doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+
+        if not original_doc or not user:
+            return jsonify({"error": "Document or user not found"}), 404
+
+        # Only approved documents can be amended
+        if original_doc['status'] != 'Approved':
+            return jsonify({"error": "Only approved documents can be amended"}), 400
+
+        # ✅ NEW VALIDATION: Check if an amendment already exists and is in progress
+        existing_amendment = db.documents.find_one({
+            'amended_from': str(original_doc['_id']),
+            'status': {'$in': ['Draft', 'In QC', 'QC Complete', 'In Review', 'Review Complete', 'Pending Approval']}
+        })
+
+        if existing_amendment:
+            return jsonify({
+                "error": f"An amendment (v{existing_amendment['major_version']}.{existing_amendment['minor_version']}) is already in progress. Please complete or withdraw it before creating a new amendment.",
+                "existing_amendment_id": str(existing_amendment['_id']),
+                "existing_version": f"{existing_amendment['major_version']}.{existing_amendment['minor_version']}",
+                "existing_status": existing_amendment['status']
+            }), 400
+
+        # Get reason and file from form data (multipart)
+        reason = request.form.get('reason')
+        if not reason:
+            return jsonify({"error": "Reason for amendment is required"}), 400
+
+        # Get uploaded file
+        if 'file' not in request.files:
+            return jsonify({"error": "Amended document file is required"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        # Store file in GridFS
+        file_id = fs.put(
+            file,
+            filename=file.filename,
+            content_type=file.content_type,
+            uploaded_by=user_id,
+            uploaded_at=datetime.datetime.now(datetime.timezone.utc)
+        )
+
+        # Create new document with MINOR version increment (v1.0 → v1.1)
+        new_doc = {
+            'doc_number': original_doc['doc_number'],  # Same doc number
+            'lineage_id': original_doc['lineage_id'],  # Same lineage
+            'major_version': original_doc['major_version'],  # Keep major version
+            'minor_version': original_doc.get('minor_version', 0) + 1,  # Increment minor
+            'status': 'Draft',  # Starts as Draft
+            'author_id': user_id,
+            'author_username': user['username'],
+            'created_at': datetime.datetime.now(datetime.timezone.utc),
+            'tmf_metadata': original_doc.get('tmf_metadata', {}),
+            'current_stage': None,
+            'qc_reviewers': [],
+            'reviewers': [],
+            'approver': {},
+            'revisions': [{
+                'revision_number': 0,
+                'file_id': file_id,
+                'filename': file.filename,
+                'uploaded_by_id': user_id,
+                'uploaded_by_username': user['username'],
+                'uploaded_at': datetime.datetime.now(datetime.timezone.utc)
+            }],
+            'active_revision': 0,
+            'history': [{
+                'action': 'Amendment Created',
+                'user_id': user_id,
+                'user_username': user['username'],
+                'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                'details': f"Amendment from v{original_doc['major_version']}.{original_doc.get('minor_version', 0)} - Reason: {reason}"
+            }],
+            'amendment_reason': reason,
+            'amended_from': str(original_doc['_id'])  # Reference to original
+        }
+
+        # Insert new document
+        result = db.documents.insert_one(new_doc)
+
+        # Add history to original document
+        db.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {
+                '$push': {
+                    'history': {
+                        'action': 'Amended',
+                        'user_id': user_id,
+                        'user_username': user['username'],
+                        'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                        'details': f'Amendment created - New draft v{new_doc["major_version"]}.{new_doc["minor_version"]}. Reason: {reason}'
+                    }
+                }
+            }
+        )
+
+        return jsonify({
+            "message": "Amendment created successfully",
+            "new_document_id": str(result.inserted_id),
+            "new_version": f"{new_doc['major_version']}.{new_doc['minor_version']}"
+        }), 201
+
+    except Exception as e:
+        print(f"Error in create_amendment: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@document_workflow_blueprint.route("/<doc_id>/can-amend", methods=['GET'])
+@jwt_required()
+def can_amend_document(doc_id):
+    """Check if a document can be amended (no amendment in progress)"""
+    try:
+        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+        if not doc:
+            return jsonify({"error": "Document not found"}), 404
+        
+        # Check if document is approved
+        if doc['status'] != 'Approved':
+            return jsonify({
+                "can_amend": False,
+                "reason": "Only approved documents can be amended"
+            }), 200
+        
+        # Check if an amendment already exists and is in progress
+        existing_amendment = db.documents.find_one({
+            'amended_from': str(doc['_id']),
+            'status': {'$in': ['Draft', 'In QC', 'QC Complete', 'In Review', 'Review Complete', 'Pending Approval']}
+        })
+        
+        if existing_amendment:
+            return jsonify({
+                "can_amend": False,
+                "reason": f"Amendment v{existing_amendment['major_version']}.{existing_amendment['minor_version']} is already in progress",
+                "existing_amendment": {
+                    "id": str(existing_amendment['_id']),
+                    "version": f"{existing_amendment['major_version']}.{existing_amendment['minor_version']}",
+                    "status": existing_amendment['status']
+                }
+            }), 200
+        
+        return jsonify({"can_amend": True}), 200
+        
+    except Exception as e:
+        print(f"Error checking amendment status: {e}")
+        return jsonify({"error": str(e)}), 500
