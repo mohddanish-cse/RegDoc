@@ -49,8 +49,7 @@ function ActionToolbar({
     ["In QC", "QC Rejected"].includes(status) && (isQcReviewer || isAdmin);
   const showSubmitReview = status === "QC Complete" && (isAuthor || isAdmin);
   const showTechReview =
-    ["In Review", "Under Revision"].includes(status) &&
-    (isTechReviewer || isAdmin);
+    ["In Review"].includes(status) && (isTechReviewer || isAdmin);
   const showSubmitApproval =
     status === "Review Complete" && (isAuthor || isAdmin);
   const showFinalApproval =

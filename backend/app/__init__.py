@@ -8,6 +8,8 @@ from pymongo.server_api import ServerApi
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
+from .ctms_routes import ctms_bp
+from .integration_routes import integration_blueprint
 
 load_dotenv()
 bcrypt = Bcrypt()
@@ -54,5 +56,11 @@ def create_app():
 
     from .document_lifecycle_routes import document_lifecycle_blueprint
     app.register_blueprint(document_lifecycle_blueprint, url_prefix='/api/documents')
+
+    from .ctms_routes import ctms_bp
+    app.register_blueprint(ctms_bp, url_prefix='/api')
+
+    from .integration_routes import integration_blueprint
+    app.register_blueprint(integration_blueprint, url_prefix='/api/integrations')
 
     return app

@@ -1,6 +1,8 @@
 // frontend/src/components/DocumentMenu.jsx
-import React, { Fragment } from "react";
+import React, { Fragment, useState } from "react";
 import { Menu, Transition } from "@headlessui/react";
+import { apiCall } from "../utils/api";
+import toast from "react-hot-toast";
 
 function DocumentMenu({
   document,
@@ -11,15 +13,18 @@ function DocumentMenu({
   onArchive,
   onAmend,
 }) {
+  const [availableSystems, setAvailableSystems] = useState([]);
+  const [loadingSystems, setLoadingSystems] = useState(false);
+  const [showIntegrationSubmenu, setShowIntegrationSubmenu] = useState(false);
+
   if (!document || !user) return null;
 
-  const { status, author_id } = document;
+  const { status, author_id, id: docId } = document;
   const { id: userId, role } = user;
 
   const isAdmin = role === "Admin";
   const isAuthor = author_id === userId;
 
-  // Permission checks
   const canWithdraw =
     [
       "Draft",
@@ -41,15 +46,60 @@ function DocumentMenu({
     (isAdmin || role === "Archivist");
 
   const showAmend = status === "Approved" && canAmend;
+  const canSendToSystems = status === "Approved";
 
   const hasAnyAction =
-    canWithdraw || canMarkObsolete || canArchive || showAmend;
+    canWithdraw ||
+    canMarkObsolete ||
+    canArchive ||
+    showAmend ||
+    canSendToSystems;
+
+  // Fetch available systems
+  const fetchAvailableSystems = async () => {
+    if (!canSendToSystems || loadingSystems) return;
+
+    setLoadingSystems(true);
+    try {
+      const response = await apiCall(
+        `/integrations/available-systems/${docId}`,
+        "GET"
+      );
+      setAvailableSystems(response.available_systems || []);
+    } catch (error) {
+      console.error("Error fetching systems:", error);
+      setAvailableSystems([]);
+    } finally {
+      setLoadingSystems(false);
+    }
+  };
+
+  // Send document to system
+  const handleSendToSystem = async (system) => {
+    try {
+      await apiCall("/integrations/push", "POST", {
+        document_id: docId,
+        target_system: system,
+      });
+      toast.success(`Document successfully sent to ${system}`);
+    } catch (error) {
+      console.error("Error sending document:", error);
+      toast.error(error.message || "Failed to send document");
+    }
+  };
 
   if (!hasAnyAction) return null;
 
   return (
     <Menu as="div" className="relative">
-      <Menu.Button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+      <Menu.Button
+        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        onClick={() => {
+          if (canSendToSystems && availableSystems.length === 0) {
+            fetchAvailableSystems();
+          }
+        }}
+      >
         <svg
           className="w-6 h-6 text-gray-600"
           fill="currentColor"
@@ -69,14 +119,12 @@ function DocumentMenu({
         leaveTo="transform opacity-0 scale-95"
       >
         <Menu.Items className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 focus:outline-none">
-          {/* Header */}
           <div className="px-4 py-2 border-b border-gray-100">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Document Actions
             </p>
           </div>
 
-          {/* Neutral Actions */}
           {showAmend && (
             <Menu.Item>
               {({ active }) => (
@@ -112,12 +160,84 @@ function DocumentMenu({
             </Menu.Item>
           )}
 
-          {/* Divider if there are destructive actions */}
-          {(canWithdraw || canMarkObsolete || canArchive) && showAmend && (
-            <div className="border-t border-gray-100 my-1" />
+          {canSendToSystems && (
+            <Menu.Item>
+              {({ active }) => (
+                <div
+                  className={`w-full text-left px-4 py-3 text-sm ${
+                    active ? "bg-blue-50" : ""
+                  }`}
+                  onMouseEnter={() => setShowIntegrationSubmenu(true)}
+                  onMouseLeave={() => setShowIntegrationSubmenu(false)}
+                >
+                  <div className="flex items-start gap-3 cursor-pointer">
+                    <svg
+                      className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Send to...</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Push to external systems
+                      </p>
+                    </div>
+                    <svg
+                      className="w-4 h-4 text-gray-400 mt-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+
+                  {showIntegrationSubmenu && (
+                    <div className="mt-2 ml-8 space-y-1">
+                      {loadingSystems ? (
+                        <p className="text-xs text-gray-500 py-2">
+                          Loading systems...
+                        </p>
+                      ) : availableSystems.length > 0 ? (
+                        availableSystems.map((system) => (
+                          <button
+                            key={system}
+                            onClick={() => handleSendToSystem(system)}
+                            className="w-full text-left px-3 py-2 text-xs rounded hover:bg-blue-100 text-gray-700 hover:text-blue-900 transition-colors"
+                          >
+                            {system}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-500 py-2">
+                          No systems available
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Menu.Item>
           )}
 
-          {/* Destructive Actions */}
+          {(canWithdraw || canMarkObsolete || canArchive) &&
+            (showAmend || canSendToSystems) && (
+              <div className="border-t border-gray-100 my-1" />
+            )}
+
           {canWithdraw && (
             <Menu.Item>
               {({ active }) => (
