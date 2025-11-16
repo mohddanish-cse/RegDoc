@@ -1,12 +1,4 @@
 # backend/routes/document_lifecycle_routes.py
-"""
-Document Lifecycle Management Routes
-Handles terminal/destructive document state changes:
-- Archive (move to long-term storage)
-- Amendment (create new version from approved doc)
-- Withdraw (cancel document before use)
-- Mark Obsolete (invalidate document content)
-"""
 
 import datetime
 from flask import Blueprint, jsonify, request
@@ -380,3 +372,78 @@ def mark_document_obsolete(doc_id):
     except Exception as e:
         print(f"Error in mark_document_obsolete: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@document_lifecycle_blueprint.route("/<string:document_id>", methods=['DELETE'])
+@jwt_required()
+def delete_document(document_id):
+    """
+    Delete a document (only allowed for Draft and Withdrawn status).
+    Only author or admin can delete.
+    """
+    import gridfs
+    from bson.objectid import ObjectId
+    
+    fs = gridfs.GridFS(db)
+    
+    try:
+        # Get current user
+        user_id_str = get_jwt_identity()
+        user = db.users.find_one({'_id': ObjectId(user_id_str)})
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Get document from MongoDB
+        try:
+            document = db.documents.find_one({"_id": ObjectId(document_id)})
+        except:
+            return jsonify({"error": "Invalid document ID"}), 400
+        
+        if not document:
+            return jsonify({"error": "Document not found"}), 404
+
+        # Extract document details
+        revisions = document.get('revisions', [])
+        filename = revisions[0].get('filename', 'Unknown') if revisions else 'Unknown'
+        status = document.get('status', '')
+        author_id = document.get('author_id')
+        doc_number = document.get('doc_number', 'N/A')
+
+        # Check permissions: only author or admin can delete
+        if str(author_id) != user_id_str and user.get('role') != 'Admin':
+            return jsonify({"error": "Unauthorized to delete this document"}), 403
+
+        # Check status: only Draft and Withdrawn can be deleted
+        if status not in ['Draft', 'Withdrawn']:
+            return jsonify({
+                "error": f"Cannot delete document with status '{status}'. Only 'Draft' and 'Withdrawn' documents can be deleted."
+            }), 400
+
+        # ✅ Delete ALL revision files from GridFS
+        for revision in revisions:
+            file_id = revision.get('file_id')
+            if file_id:
+                try:
+                    fs.delete(file_id)
+                    print(f"✅ Deleted GridFS file: {file_id}")
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not delete GridFS file {file_id}: {e}")
+
+        # ✅ Delete document from MongoDB
+        result = db.documents.delete_one({"_id": ObjectId(document_id)})
+        
+        if result.deleted_count == 0:
+            return jsonify({"error": "Failed to delete document from database"}), 500
+
+        print(f"✅ Deleted document: {doc_number} ({filename}) by {user.get('username')}")
+        
+        return jsonify({
+            "message": f"Document '{filename}' ({doc_number}) deleted successfully"
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error deleting document: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Failed to delete document: {str(e)}"}), 500
