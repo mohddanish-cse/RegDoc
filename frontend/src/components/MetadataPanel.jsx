@@ -353,7 +353,13 @@ function MetadataPanel({ document, versionHistory }) {
               </svg>
               Workflow Timeline
             </h3>
-            <div className="space-y-4">
+
+            {/* ✅ Scrollable container with custom scrollbar */}
+            <div
+              className="space-y-4 max-h-[500px] overflow-y-auto pr-2
+                 scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 
+                 hover:scrollbar-thumb-gray-400"
+            >
               {document.history && document.history.length > 0 ? (
                 document.history.map((entry, index) => (
                   <div

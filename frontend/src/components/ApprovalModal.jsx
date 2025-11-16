@@ -30,11 +30,10 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
         comment: comment.trim(),
       });
 
+      // ✅ FIXED: Only 2 success messages
       const successMessages = {
         Approved: "Document approved and digitally signed!",
-        RejectedWithRevisions:
-          "Document rejected - author will receive revision feedback",
-        RejectedCompletely: "Document withdrawn completely",
+        Rejected: "Document rejected - will go through full cycle again",
       };
 
       toast.success(successMessages[decision], { id: toastId });
@@ -58,6 +57,7 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
 
   if (!isOpen || !document) return null;
 
+  // ✅ FIXED: Only 2 configs
   const getDecisionConfig = () => {
     const configs = {
       Approved: {
@@ -65,15 +65,10 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
         icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
         title: "Final Approval",
       },
-      RejectedWithRevisions: {
-        color: "from-yellow-600 to-yellow-700",
-        icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
-        title: "Reject with Revisions",
-      },
-      RejectedCompletely: {
+      Rejected: {
         color: "from-red-600 to-red-700",
         icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
-        title: "Reject Completely",
+        title: "Reject Document",
       },
     };
     return configs[decision] || configs.Approved;
@@ -146,7 +141,7 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                 Approval Decision <span className="text-error-600">*</span>
               </label>
               <div className="space-y-2">
-                {/* Approve */}
+                {/* ✅ Option 1: Approve & Sign */}
                 <label
                   className={`flex items-start p-3 border-2 rounded-lg cursor-pointer transition-all ${
                     decision === "Approved"
@@ -183,59 +178,16 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 mt-0.5">
-                      Approve and apply digital signature. Version will be
-                      incremented.
+                      Approve and apply digital signature. Major version will be
+                      incremented (e.g., 1.0 → 2.0).
                     </p>
                   </div>
                 </label>
 
-                {/* Reject with Revisions */}
+                {/* ✅ Option 2: Reject */}
                 <label
                   className={`flex items-start p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    decision === "RejectedWithRevisions"
-                      ? "border-yellow-500 bg-yellow-50"
-                      : "border-gray-200 hover:border-yellow-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="decision"
-                    value="RejectedWithRevisions"
-                    checked={decision === "RejectedWithRevisions"}
-                    onChange={(e) => setDecision(e.target.value)}
-                    disabled={isSubmitting}
-                    className="mt-0.5 w-4 h-4 text-yellow-600 focus:ring-yellow-500"
-                  />
-                  <div className="ml-2 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <svg
-                        className="w-4 h-4 text-yellow-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                      <span className="font-semibold text-sm text-gray-900">
-                        Reject with Revisions
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      Return to author for corrections. Will go through QC,
-                      Review, and Approval again.
-                    </p>
-                  </div>
-                </label>
-
-                {/* Reject Completely */}
-                <label
-                  className={`flex items-start p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                    decision === "RejectedCompletely"
+                    decision === "Rejected"
                       ? "border-red-500 bg-red-50"
                       : "border-gray-200 hover:border-red-300"
                   }`}
@@ -243,8 +195,8 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                   <input
                     type="radio"
                     name="decision"
-                    value="RejectedCompletely"
-                    checked={decision === "RejectedCompletely"}
+                    value="Rejected"
+                    checked={decision === "Rejected"}
                     onChange={(e) => setDecision(e.target.value)}
                     disabled={isSubmitting}
                     className="mt-0.5 w-4 h-4 text-red-600 focus:ring-red-500"
@@ -265,15 +217,17 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                         />
                       </svg>
                       <span className="font-semibold text-sm text-gray-900">
-                        Reject Completely
+                        Reject
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 mt-0.5">
-                      Permanently withdraw. Marked as "Withdrawn" and cannot be
-                      resubmitted.
+                      Return to author for corrections. Document will go through
+                      full review cycle (QC → Review → Approval) again.
                     </p>
                   </div>
                 </label>
+
+                {/* ✅ REMOVED: "Reject Completely" option */}
               </div>
             </div>
 
@@ -301,8 +255,8 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
               </p>
             </div>
 
-            {/* Warning */}
-            {decision === "RejectedCompletely" && (
+            {/* ✅ Warning for Rejection */}
+            {decision === "Rejected" && (
               <div className="p-2.5 bg-red-50 border-l-4 border-red-400 rounded flex items-start gap-2">
                 <svg
                   className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5"
@@ -316,8 +270,9 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                   />
                 </svg>
                 <p className="text-xs text-red-700">
-                  <strong>Permanent Action:</strong> This document will be
-                  withdrawn and cannot be recovered.
+                  <strong>Important:</strong> Document status will change to
+                  "Approval Rejected". Author must address feedback and resubmit
+                  through the full workflow.
                 </p>
               </div>
             )}
@@ -338,8 +293,6 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
               className={`px-3.5 py-2 text-sm font-semibold text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 transition-colors ${
                 decision === "Approved"
                   ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
-                  : decision === "RejectedWithRevisions"
-                  ? "bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500"
                   : "bg-red-600 hover:bg-red-700 focus:ring-red-500"
               }`}
             >
@@ -347,9 +300,7 @@ function ApprovalModal({ isOpen, onClose, document, onApprovalSuccess }) {
                 ? "Processing..."
                 : decision === "Approved"
                 ? "Approve & Sign"
-                : decision === "RejectedWithRevisions"
-                ? "Reject & Request Revisions"
-                : "Reject Completely"}
+                : "Reject Document"}
             </button>
           </div>
         </Dialog.Panel>

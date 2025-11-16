@@ -152,9 +152,9 @@ function LibraryPage() {
                 <h2 className="text-2xl font-bold text-gray-900">
                   Document Library
                 </h2>
-                <p className="text-sm text-gray-500 mt-0.5">
+                {/* <p className="text-sm text-gray-500 mt-0.5">
                   {documents.length} documents available
-                </p>
+                </p> */}
               </div>
             </div>
 
