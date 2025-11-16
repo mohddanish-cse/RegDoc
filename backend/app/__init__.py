@@ -10,6 +10,7 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from .ctms_routes import ctms_bp
 from .integration_routes import integration_blueprint
+from .email_service import mail
 
 load_dotenv()
 bcrypt = Bcrypt()
@@ -24,6 +25,17 @@ def create_app():
         "https://regdoc-backend.onrender.com"  # Backend can call itself
     ])
 
+    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+    app.config['MAIL_PORT'] = 587
+    app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME') 
+    app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD') 
+    app.config['FRONTEND_URL'] = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+    app.config['DEMO_MODE'] = os.getenv('DEMO_MODE', 'false')
+    app.config['DEMO_EMAIL'] = os.getenv('DEMO_EMAIL')
+    
+    mail.init_app(app)
     
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
     jwt = JWTManager(app)

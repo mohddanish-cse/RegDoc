@@ -16,6 +16,11 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
       return;
     }
 
+    if (decision === "RequestChanges" && !comment.trim()) {
+      toast.error("Comments are required when requesting changes");
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = toast.loading("Submitting review...");
 
@@ -74,7 +79,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
               </label>
 
               <div className="space-y-3">
-                {/* ✅ Approve Button */}
+                {/* Approve Button */}
                 <button
                   type="button"
                   onClick={() => setDecision("Approved")}
@@ -125,7 +130,7 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                   </div>
                 </button>
 
-                {/* ✅ Request Changes */}
+                {/* Request Changes */}
                 <button
                   type="button"
                   onClick={() => setDecision("RequestChanges")}
@@ -175,8 +180,6 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
                     )}
                   </div>
                 </button>
-
-                {/* ✅ REMOVED: "Reject Completely" option */}
               </div>
             </div>
 
@@ -184,13 +187,29 @@ function ReviewModal({ isOpen, onClose, document, onReviewSuccess }) {
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Comments
+                {decision === "RequestChanges" && (
+                  <span className="text-red-500"> *</span>
+                )}
+                {decision === "RequestChanges" && (
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    (Required when requesting changes)
+                  </span>
+                )}
               </label>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none"
-                placeholder="Enter review comments..."
+                className={`w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors resize-none ${
+                  decision === "RequestChanges" && !comment.trim()
+                    ? "border-red-300"
+                    : "border-gray-300"
+                }`}
+                placeholder={
+                  decision === "RequestChanges"
+                    ? "Please explain what changes are needed..."
+                    : "Enter review comments..."
+                }
                 disabled={isSubmitting}
               />
             </div>

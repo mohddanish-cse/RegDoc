@@ -46,7 +46,8 @@ function ActionToolbar({
   const showSubmitQc = status === "Draft" && (isAuthor || isAdmin);
   const showSkipQc = status === "Draft" && (isAuthor || isAdmin);
   const showQcReview = ["In QC"].includes(status) && (isQcReviewer || isAdmin);
-  const showSubmitReview = status === "QC Complete" && (isAuthor || isAdmin);
+  const showSubmitReview =
+    status === ("QC Complete" || "Under Revision") && (isAuthor || isAdmin);
   const showTechReview =
     ["In Review"].includes(status) && (isTechReviewer || isAdmin);
   const showSubmitApproval =

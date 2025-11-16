@@ -6,7 +6,9 @@ from . import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson.objectid import ObjectId
 from .crypto_utils import sign_data, verify_signature
+from .email_service import send_workflow_notification
 import gridfs
+
 
 document_workflow_blueprint = Blueprint('document_workflow', __name__)
 fs = gridfs.GridFS(db)
@@ -70,6 +72,25 @@ def submit_for_qc(doc_id):
             }}
         )
         
+        # ✅ SEND EMAIL NOTIFICATIONS TO ALL QC REVIEWERS
+        for reviewer_id in qc_reviewer_ids:
+            try:
+                reviewer = db.users.find_one({'_id': ObjectId(reviewer_id)})
+                if reviewer and reviewer.get('email'):
+                    send_workflow_notification(
+                        recipient_email=reviewer['email'],
+                        recipient_name=reviewer['username'],
+                        document_info={
+                            'name': doc.get('doc_number', 'Document'),
+                            'id': str(doc['_id']),
+                            'status': 'In QC'
+                        },
+                        workflow_type='QC Review',
+                        sender_name=user['username']
+                    )
+            except Exception as email_error:
+                print(f"⚠️ Failed to send email to reviewer {reviewer_id}: {email_error}")
+        
         return jsonify({"message": "Document submitted to QC successfully"}), 200
         
     except Exception as e:
@@ -118,7 +139,7 @@ def submit_for_review_direct(doc_id):
                 'current_stage': 'Technical Review',
                 'reviewers': reviewers,
                 'review_due_date': due_date,
-                'qc_skipped': True  # Mark that QC was skipped
+                'qc_skipped': True
             },
             '$push': {
                 'history': {
@@ -131,12 +152,29 @@ def submit_for_review_direct(doc_id):
             }}
         )
         
+        for reviewer_id in reviewer_ids:
+            try:
+                reviewer = db.users.find_one({'_id': ObjectId(reviewer_id)})
+                if reviewer and reviewer.get('email'):
+                    send_workflow_notification(
+                        recipient_email=reviewer['email'],
+                        recipient_name=reviewer['username'],
+                        document_info={
+                            'name': doc.get('doc_number', 'Document'),
+                            'id': str(doc['_id']),
+                            'status': 'In Review'
+                        },
+                        workflow_type='Technical Review',
+                        sender_name=user['username']
+                    )
+            except Exception as email_error:
+                print(f"⚠️ Failed to send email to reviewer {reviewer_id}: {email_error}")
+        
         return jsonify({"message": "Document submitted for technical review (QC skipped)"}), 200
         
     except Exception as e:
         print(f"Error in submit_for_review_direct: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 @document_workflow_blueprint.route("/<doc_id>/qc-review", methods=['POST'])
 @jwt_required()
@@ -226,159 +264,6 @@ def qc_review(doc_id):
         return jsonify({"error": str(e)}), 500
 
 
-@document_workflow_blueprint.route("/<doc_id>/submit-review", methods=['POST'])
-@jwt_required()
-def submit_for_review(doc_id):
-    """Author submits QC-passed document to technical reviewers"""
-    try:
-        user_id = ObjectId(get_jwt_identity())
-        user = db.users.find_one({'_id': user_id})
-        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-        
-        if not doc or not user:
-            return jsonify({"error": "Document or user not found"}), 404
-            
-        if not is_admin_or_author(user, doc):
-            return jsonify({"error": "Only author or admin can submit"}), 403
-            
-        if doc['status'] != 'QC Complete':
-            return jsonify({"error": "Document must complete QC first"}), 400
-        
-        data = request.get_json()
-        reviewer_ids = data.get('reviewers', [])
-        due_date = data.get('due_date')
-        
-        if not reviewer_ids:
-            return jsonify({"error": "At least one reviewer must be selected"}), 400
-        
-        reviewers = []
-        for reviewer_id in reviewer_ids:
-            reviewers.append({
-                'user_id': ObjectId(reviewer_id),
-                'status': 'Pending',
-                'reviewed_at': None,
-                'comment': ''
-            })
-        
-        # Update document
-        db.documents.update_one(
-            {'_id': ObjectId(doc_id)},
-            {'$set': {
-                'status': 'In Review',
-                'current_stage': 'Technical Review',
-                'reviewers': reviewers,
-                'review_due_date': due_date
-            },
-            '$push': {
-                'history': {
-                    'action': 'Submitted for Technical Review',
-                    'user_id': user_id,
-                    'user_username': user['username'],
-                    'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                    'details': f"Submitted to {len(reviewer_ids)} reviewer(s)"
-                }
-            }}
-        )
-        
-        return jsonify({"message": "Document submitted for technical review"}), 200
-        
-    except Exception as e:
-        print(f"Error in submit_for_review: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-# @document_workflow_blueprint.route("/<doc_id>/technical-review", methods=['POST'])
-# @jwt_required()
-# def technical_review(doc_id):
-#     try:
-#         user_id = ObjectId(get_jwt_identity())
-#         user = db.users.find_one({'_id': user_id})
-#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-
-#         if not doc or not user:
-#             return jsonify({"error": "Document or user not found"}), 404
-
-#         if doc['status'] != 'In Review':
-#             return jsonify({"error": "Document is not in review"}), 400
-
-#         data = request.get_json()
-#         decision = data.get('decision')  # 'Approved', 'RequestChanges', 'RejectedCompletely'
-#         comment = data.get('comment', '')
-
-#         if decision not in ['Approved', 'RequestChanges', 'RejectedCompletely']:
-#             return jsonify({"error": "Invalid decision"}), 400
-
-#         # Handle Request Changes
-#         if decision == 'RequestChanges':
-#             db.documents.update_one(
-#                 {'_id': ObjectId(doc_id)},
-#                 {'$set': {
-#                     'status': 'Under Revision',
-#                     f'technical_reviews.{str(user_id)}.status': 'RequestChanges',
-#                     f'technical_reviews.{str(user_id)}.comment': comment,
-#                     f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
-#                 },
-#                     '$push': {
-#                         'history': {
-#                             'action': 'Technical Review - Changes Requested',
-#                             'user_id': user_id,
-#                             'user_username': user['username'],
-#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                             'details': comment
-#                         }
-#                     }}
-#             )
-#             return jsonify({"message": "Changes requested - document returned to author"}), 200
-
-#         # Handle Reject Completely (Withdrawn)
-#         if decision == 'RejectedCompletely':
-#             db.documents.update_one(
-#                 {'_id': ObjectId(doc_id)},
-#                 {'$set': {
-#                     'status': 'Withdrawn',
-#                     f'technical_reviews.{str(user_id)}.status': 'RejectedCompletely',
-#                     f'technical_reviews.{str(user_id)}.comment': comment,
-#                     f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc),
-#                     'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
-#                     'withdrawn_by': user['username']
-#                 },
-#                     '$push': {
-#                         'history': {
-#                             'action': 'Document Withdrawn (Rejected at Technical Review)',
-#                             'user_id': user_id,
-#                             'user_username': user['username'],
-#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                             'details': comment
-#                         }
-#                     }}
-#             )
-#             return jsonify({"message": "Document withdrawn completely"}), 200
-
-#         # Approved - Move to Pending Approval
-#         db.documents.update_one(
-#             {'_id': ObjectId(doc_id)},
-#             {'$set': {
-#                 'status': 'Pending Approval',
-#                 f'technical_reviews.{str(user_id)}.status': 'Approved',
-#                 f'technical_reviews.{str(user_id)}.comment': comment,
-#                 f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
-#             },
-#                 '$push': {
-#                     'history': {
-#                         'action': 'Technical Review Approved',
-#                         'user_id': user_id,
-#                         'user_username': user['username'],
-#                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                         'details': 'Document approved for final approval'
-#                     }
-#                 }}
-#         )
-#         return jsonify({"message": "Technical review approved"}), 200
-
-#     except Exception as e:
-#         print(f"Error in technical_review: {e}")
-#         return jsonify({"error": str(e)}), 500
-
 @document_workflow_blueprint.route("/<doc_id>/technical-review", methods=['POST'])
 @jwt_required()
 def technical_review(doc_id):
@@ -395,53 +280,69 @@ def technical_review(doc_id):
             return jsonify({"error": "Document is not in review"}), 400
         
         data = request.get_json()
-        decision = data.get('decision')  # ✅ ONLY 'Approved' or 'RequestChanges'
+        decision = data.get('decision')  # 'Approved' or 'RequestChanges'
         comment = data.get('comment', '')
         
-        # ✅ FIX: Only allow 2 options
         if decision not in ['Approved', 'RequestChanges']:
             return jsonify({"error": "Invalid decision. Must be 'Approved' or 'RequestChanges'"}), 400
         
+        if decision == 'RequestChanges' and not comment:
+            return jsonify({"error": "Comments are required when requesting changes"}), 400
+
         # Get reviewers array
         reviewers = doc.get('reviewers', [])
         reviewer_idx = next((i for i, r in enumerate(reviewers) if r['user_id'] == user_id), None)
         
+        # Check if user is Admin
+        is_admin = user['role'] == 'Admin'
+        
+        # If not in reviewers list
         if reviewer_idx is None:
-            # Allow admin to review even if not assigned
-            if user['role'] == 'Admin':
+            if is_admin:
+                # Admin can review even if not assigned
                 reviewers.append({
                     'user_id': user_id,
-                    'status': 'Pending',
-                    'reviewed_at': None,
-                    'comment': ''
+                    'status': decision,
+                    'reviewed_at': datetime.datetime.now(datetime.timezone.utc),
+                    'comment': comment
                 })
                 reviewer_idx = len(reviewers) - 1
             else:
                 return jsonify({"error": "You are not assigned as a reviewer"}), 403
-        
-        # ✅ Update this reviewer's status
-        reviewers[reviewer_idx] = {
-            'user_id': user_id,
-            'status': decision,  # 'Approved' or 'RequestChanges'
-            'reviewed_at': datetime.datetime.now(datetime.timezone.utc),
-            'comment': comment
-        }
-        
-        # ✅ FIX: Determine document status based on ALL reviewers
-        any_changes_requested = any(r['status'] == 'RequestChanges' for r in reviewers)
-        all_approved = all(r['status'] == 'Approved' for r in reviewers)
-        
-        if any_changes_requested:
-            new_status = 'Under Revision'
-            action_text = f"Technical Review - Changes Requested by {user['username']}"
-        elif all_approved:
-            new_status = 'Review Complete'  # ✅ Only when ALL approve
-            action_text = "Technical Review Completed - All Reviewers Approved"
         else:
-            new_status = 'In Review'  # Still waiting for some reviewers
-            action_text = f"Technical Review - Approved by {user['username']}"
+            # Update existing reviewer
+            reviewers[reviewer_idx] = {
+                'user_id': user_id,
+                'status': decision,
+                'reviewed_at': datetime.datetime.now(datetime.timezone.utc),
+                'comment': comment
+            }
         
-        # Update document
+        # ✅ KEY LOGIC: Admin decision is FINAL
+        if is_admin:
+            # Admin's decision overrides everything
+            if decision == 'Approved':
+                new_status = 'Review Complete'
+                action_text = f"Technical Review - Admin {user['username']} Approved (Final)"
+            else:  # RequestChanges
+                new_status = 'Under Revision'
+                action_text = f"Technical Review - Admin {user['username']} Requested Changes (Final)"
+        else:
+            # Regular reviewer: Check all reviewers' status
+            any_changes_requested = any(r['status'] == 'RequestChanges' for r in reviewers)
+            all_approved = all(r['status'] == 'Approved' for r in reviewers)
+            
+            if any_changes_requested:
+                new_status = 'Under Revision'
+                action_text = f"Technical Review - Changes Requested by {user['username']}"
+            elif all_approved:
+                new_status = 'Review Complete'
+                action_text = "Technical Review Completed - All Reviewers Approved"
+            else:
+                new_status = 'In Review'  # Still waiting for other reviewers
+                action_text = f"Technical Review - Approved by {user['username']}"
+        
+        # Update document in database
         db.documents.update_one(
             {'_id': ObjectId(doc_id)},
             {'$set': {
@@ -469,74 +370,6 @@ def technical_review(doc_id):
         return jsonify({"error": str(e)}), 500
 
 
-# @document_workflow_blueprint.route("/<doc_id>/upload-corrected-file", methods=['POST'])
-# @jwt_required()
-# def upload_corrected_file(doc_id):
-#     """Upload corrected file after reviewer requests changes - goes back to SAME reviewer"""
-#     try:
-#         user_id = ObjectId(get_jwt_identity())
-#         user = db.users.find_one({'_id': user_id})
-#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-
-#         if not doc or not user:
-#             return jsonify({"error": "Document or user not found"}), 404
-
-#         if doc['status'] != 'Under Revision':
-#             return jsonify({"error": "Document is not under revision"}), 400
-
-#         if doc['author_id'] != user_id:
-#             return jsonify({"error": "Only the document author can upload corrections"}), 403
-
-#         file = request.files.get('file')
-#         if not file:
-#             return jsonify({"error": "No file provided"}), 400
-
-#         # Store new file in GridFS
-#         file_id = fs.put(file, filename=file.filename, content_type=file.content_type)
-
-#         # Increment minor version
-#         new_minor_version = doc.get('minor_version', 0) + 1
-
-#         # Add new revision
-#         new_revision = {
-#             'file_id': file_id,
-#             'filename': file.filename,
-#             'uploaded_by_id': user_id,
-#             'uploaded_by_username': user['username'],
-#             'uploaded_at': datetime.datetime.now(datetime.timezone.utc),
-#             'version': f"{doc['major_version']}.{new_minor_version}",
-#             'change_description': 'Corrections after reviewer feedback'
-#         }
-
-#         # Update document - back to "In Review" with SAME reviewers
-#         db.documents.update_one(
-#             {'_id': ObjectId(doc_id)},
-#             {'$set': {
-#                 'status': 'In Review',
-#                 'minor_version': new_minor_version,
-#                 'active_revision': len(doc['revisions'])
-#             },
-#                 '$push': {
-#                     'revisions': new_revision,
-#                     'history': {
-#                         'action': 'Corrected File Uploaded',
-#                         'user_id': user_id,
-#                         'user_username': user['username'],
-#                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                         'details': f'Version {doc["major_version"]}.{new_minor_version} uploaded for re-review'
-#                     }
-#                 }}
-#         )
-
-#         return jsonify({
-#             "message": "Corrected file uploaded - returned to reviewer",
-#             "version": f"{doc['major_version']}.{new_minor_version}"
-#         }), 200
-
-#     except Exception as e:
-#         print(f"Error uploading corrected file: {e}")
-#         import traceback
-#         return jsonify({"error": str(e)}), 500
 @document_workflow_blueprint.route("/<doc_id>/upload-corrected-file", methods=['POST'])
 @jwt_required()
 def upload_corrected_file(doc_id):
@@ -619,234 +452,6 @@ def upload_corrected_file(doc_id):
         return jsonify({"error": str(e)}), 500
 
 
-@document_workflow_blueprint.route("/<doc_id>/submit-approval", methods=['POST'])
-@jwt_required()
-def submit_for_approval(doc_id):
-    """Author submits reviewed document to approver"""
-    try:
-        user_id = ObjectId(get_jwt_identity())
-        user = db.users.find_one({'_id': user_id})
-        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-        
-        if not doc or not user:
-            return jsonify({"error": "Document or user not found"}), 404
-            
-        if not is_admin_or_author(user, doc):
-            return jsonify({"error": "Only author or admin can submit"}), 403
-            
-        if doc['status'] != 'Review Complete':
-            return jsonify({"error": "Document must complete technical review first"}), 400
-        
-        data = request.get_json()
-        approver_id = data.get('approver')
-        due_date = data.get('due_date') 
-        
-        if not approver_id:
-            return jsonify({"error": "Approver must be selected"}), 400
-        
-        db.documents.update_one(
-            {'_id': ObjectId(doc_id)},
-            {'$set': {
-                'status': 'Pending Approval',
-                'current_stage': 'Final Approval',
-                'approver': {
-                    'user_id': ObjectId(approver_id),
-                    'status': 'Pending',
-                    'approved_at': None,
-                    'comment': '',
-                    'due_date': due_date
-                }
-            },
-            '$push': {
-                'history': {
-                    'action': 'Submitted for Final Approval',
-                    'user_id': user_id,
-                    'user_username': user['username'],
-                    'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                    'details': 'Submitted for final approval and signature'
-                }
-            }}
-        )
-        
-        return jsonify({"message": "Document submitted for final approval"}), 200
-        
-    except Exception as e:
-        print(f"Error in submit_for_approval: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-# @document_workflow_blueprint.route("/<doc_id>/final-approval", methods=['POST'])
-# @jwt_required()
-# def final_approval(doc_id):
-#     """Final approval with digital signature - increments major version and supersedes original if amendment"""
-#     try:
-#         user_id = ObjectId(get_jwt_identity())
-#         user = db.users.find_one({'_id': user_id})
-#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
-
-#         if not doc or not user:
-#             return jsonify({"error": "Document or user not found"}), 404
-
-#         if doc['status'] != 'Pending Approval':
-#             return jsonify({"error": "Document is not pending approval"}), 400
-
-#         approver_data = doc.get('approver', {})
-#         if str(approver_data.get('user_id')) != str(user_id) and user['role'] != 'Admin':
-#             return jsonify({"error": "You are not the assigned approver"}), 403
-
-#         data = request.get_json()
-#         decision = data.get('decision')
-#         comment = data.get('comment', '')
-
-#         if decision not in ['Approved', 'RejectedWithRevisions', 'RejectedCompletely']:
-#             return jsonify({"error": "Invalid decision"}), 400
-
-#         # Handle Reject with Revisions
-#         if decision == 'RejectedWithRevisions':
-#             db.documents.update_one(
-#                 {'_id': ObjectId(doc_id)},
-#                 {'$set': {
-#                     'status': 'Approval Rejected',
-#                     'approver.status': 'RejectedWithRevisions',
-#                     'approver.comment': comment,
-#                     'approver.approved_at': datetime.datetime.now(datetime.timezone.utc)
-#                 },
-#                     '$push': {
-#                         'history': {
-#                             'action': 'Final Approval Rejected (Revisions Required)',
-#                             'user_id': user_id,
-#                             'user_username': user['username'],
-#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                             'details': comment
-#                         }
-#                     }}
-#             )
-#             return jsonify({"message": "Document rejected - revisions required"}), 200
-
-#         # Handle Reject Completely (Withdrawn)
-#         if decision == 'RejectedCompletely':
-#             db.documents.update_one(
-#                 {'_id': ObjectId(doc_id)},
-#                 {'$set': {
-#                     'status': 'Withdrawn',
-#                     'approver.status': 'RejectedCompletely',
-#                     'approver.comment': comment,
-#                     'approver.approved_at': datetime.datetime.now(datetime.timezone.utc),
-#                     'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
-#                     'withdrawn_by': user['username']
-#                 },
-#                     '$push': {
-#                         'history': {
-#                             'action': 'Document Withdrawn (Completely Rejected)',
-#                             'user_id': user_id,
-#                             'user_username': user['username'],
-#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                             'details': comment
-#                         }
-#                     }}
-#             )
-#             return jsonify({"message": "Document withdrawn completely"}), 200
-
-#         # ✅ APPROVED - Apply digital signature
-#         try:
-#             # Get revisions safely
-#             revisions = doc.get('revisions', [])
-#             if not revisions:
-#                 return jsonify({"error": "Document has no file revisions"}), 400
-            
-#             active_rev_index = doc.get('active_revision', len(revisions) - 1)
-#             if active_rev_index >= len(revisions):
-#                 active_rev_index = len(revisions) - 1
-            
-#             active_rev = revisions[active_rev_index]
-            
-#             # Get file from GridFS
-#             file_data = fs.get(active_rev['file_id']).read()
-            
-#             # Sign with user's private key
-#             signature = sign_data(user['private_key'], file_data)
-            
-#         except Exception as sig_error:
-#             print(f"Signature error: {sig_error}")
-#             import traceback
-#             traceback.print_exc()
-#             return jsonify({"error": f"Failed to sign document: {str(sig_error)}"}), 500
-
-#         # Calculate new version - Increment MAJOR version (v1.1 → v2.0)
-#         new_major_version = doc.get('major_version', 0) + 1
-#         new_minor_version = 0
-        
-#         # Update document to Approved status with signature
-#         update_fields = {
-#             'status': 'Approved',
-#             'signature': signature,
-#             'signed_by_id': user_id,
-#             'signed_by_username': user['username'],
-#             'signed_by_public_key': user['public_key'],
-#             'signed_at': datetime.datetime.now(datetime.timezone.utc),
-#             'major_version': new_major_version,
-#             'minor_version': new_minor_version,
-#             'approver.status': 'Approved',
-#             'approver.comment': comment,
-#             'approver.approved_at': datetime.datetime.now(datetime.timezone.utc)
-#         }
-        
-#         db.documents.update_one(
-#             {'_id': ObjectId(doc_id)},
-#             {
-#                 '$set': update_fields,
-#                 '$push': {
-#                     'history': {
-#                         'action': 'Document Approved & Signed',
-#                         'user_id': user_id,
-#                         'user_username': user['username'],
-#                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                         'details': f"Document digitally signed. Version updated to {new_major_version}.{new_minor_version}. {comment}"
-#                     }
-#                 }
-#             }
-#         )
-        
-#         # ✅ If this is an amendment, mark the original document as Superseded
-#         if 'amended_from' in doc and doc['amended_from']:
-#             try:
-#                 original_doc_id = ObjectId(doc['amended_from'])
-#                 original_doc = db.documents.find_one({'_id': original_doc_id})
-                
-#                 if original_doc:
-#                     db.documents.update_one(
-#                         {'_id': original_doc_id},
-#                         {
-#                             '$set': {
-#                                 'status': 'Superseded',
-#                                 'superseded_by': str(doc['_id']),
-#                                 'superseded_at': datetime.datetime.now(datetime.timezone.utc)
-#                             },
-#                             '$push': {
-#                                 'history': {
-#                                     'action': 'Superseded by Amendment',
-#                                     'user_id': user_id,
-#                                     'user_username': user['username'],
-#                                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
-#                                     'details': f"Superseded by approved amendment v{new_major_version}.{new_minor_version}"
-#                                 }
-#                             }
-#                         }
-#                     )
-#             except Exception as supersede_error:
-#                 print(f"Warning: Could not supersede original document: {supersede_error}")
-#                 # Don't fail approval if supersede fails
-        
-#         return jsonify({
-#             "message": "Document approved and signed successfully",
-#             "version": f"{new_major_version}.{new_minor_version}"
-#         }), 200
-
-#     except Exception as e:
-#         print(f"Error in final_approval: {e}")
-#         import traceback
-#         traceback.print_exc()
-#         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 @document_workflow_blueprint.route("/<doc_id>/final-approval", methods=['POST'])
 @jwt_required()
 def final_approval(doc_id):
@@ -991,7 +596,6 @@ def final_approval(doc_id):
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 
 @document_workflow_blueprint.route("/<doc_id>/verify-signature", methods=['POST'])
@@ -1349,3 +953,661 @@ def can_amend_document(doc_id):
     except Exception as e:
         print(f"Error checking amendment status: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@document_workflow_blueprint.route("/<doc_id>/submit-review", methods=['POST'])
+@jwt_required()
+def submit_for_review(doc_id):
+    """After QC is approved, submit to technical reviewers"""
+    try:
+        user_id = ObjectId(get_jwt_identity())
+        user = db.users.find_one({'_id': user_id})
+        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+        if not doc or not user:
+            return jsonify({"error": "Document or user not found"}), 404
+            
+        if not is_admin_or_author(user, doc):
+            return jsonify({"error": "Only author or admin can submit"}), 403
+            
+        if doc['status'] != 'QC Complete':
+            return jsonify({"error": "Only QC Complete documents can be submitted for review"}), 400
+        
+        data = request.get_json()
+        reviewer_ids = data.get('reviewers', [])
+        due_date = data.get('due_date')
+        
+        if not reviewer_ids:
+            return jsonify({"error": "At least one reviewer must be selected"}), 400
+        
+        reviewers = []
+        for reviewer_id in reviewer_ids:
+            reviewers.append({
+                'user_id': ObjectId(reviewer_id),
+                'status': 'Pending',
+                'reviewed_at': None,
+                'comment': ''
+            })
+        
+        db.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {
+                'status': 'In Review',
+                'current_stage': 'Technical Review',
+                'reviewers': reviewers,
+                'review_due_date': due_date
+            },
+            '$push': {
+                'history': {
+                    'action': 'Submitted for Technical Review',
+                    'user_id': user_id,
+                    'user_username': user['username'],
+                    'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                    'details': f"Submitted to {len(reviewer_ids)} technical reviewer(s)"
+                }
+            }}
+        )
+        
+        for reviewer_id in reviewer_ids:
+            try:
+                reviewer = db.users.find_one({'_id': ObjectId(reviewer_id)})
+                if reviewer and reviewer.get('email'):
+                    send_workflow_notification(
+                        recipient_email=reviewer['email'],
+                        recipient_name=reviewer['username'],
+                        document_info={
+                            'name': doc.get('doc_number', 'Document'),
+                            'id': str(doc['_id']),
+                            'status': 'In Review'
+                        },
+                        workflow_type='Technical Review',
+                        sender_name=user['username']
+                    )
+            except Exception as email_error:
+                print(f"⚠️ Failed to send email to reviewer {reviewer_id}: {email_error}")
+        
+        return jsonify({"message": "Document submitted for technical review"}), 200
+        
+    except Exception as e:
+        print(f"Error in submit_for_review: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@document_workflow_blueprint.route("/<doc_id>/submit-approval", methods=['POST'])
+@jwt_required()
+def submit_for_approval(doc_id):
+    """After technical review, submit for approval"""
+    try:
+        user_id = ObjectId(get_jwt_identity())
+        user = db.users.find_one({'_id': user_id})
+        doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+        if not doc or not user:
+            return jsonify({"error": "Document or user not found"}), 404
+            
+        if not is_admin_or_author(user, doc):
+            return jsonify({"error": "Only author or admin can submit"}), 403
+            
+        if doc['status'] != 'Review Complete':
+            return jsonify({"error": "Only reviewed documents can be submitted for approval"}), 400
+        
+        data = request.get_json()
+        approver_id = data.get('approver')
+        due_date = data.get('due_date')
+        
+        if not approver_id:
+            return jsonify({"error": "At least one approver must be selected"}), 400
+        
+        approver = {
+                'user_id': ObjectId(approver_id),
+                'status': 'Pending',
+                'approved_at': None,
+                'comment': ''
+        }
+        
+        db.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {
+                'status': 'Pending Approval',
+                'current_stage': 'Approval',
+                'approver': approver,
+                'approval_due_date': due_date
+            },
+            '$push': {
+                'history': {
+                    'action': 'Submitted for Approval',
+                    'user_id': user_id,
+                    'user_username': user['username'],
+                    'timestamp': datetime.datetime.now(datetime.timezone.utc),
+                    'details': f"Submitted to approver for final approval"
+                }
+            }}
+        )
+        
+        # ✅ SEND EMAIL TO ALL APPROVERS
+        try:
+            approver = db.users.find_one({'_id': ObjectId(approver_id)})
+            if approver and approver.get('email'):
+                send_workflow_notification(
+                    recipient_email=approver['email'],
+                    recipient_name=approver['username'],
+                    document_info={
+                        'name': doc.get('doc_number', 'Document'),
+                        'id': str(doc['_id']),
+                        'status': 'Pending Approval'
+                    },
+                    workflow_type='Approval',
+                    sender_name=user['username']
+                )
+        except Exception as email_error:
+            print(f"⚠️ Failed to send email to approver {approver_id}: {email_error}")
+        
+        return jsonify({"message": "Document submitted for approval"}), 200
+        
+    except Exception as e:
+        print(f"Error in submit_for_approval: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# @document_workflow_blueprint.route("/<doc_id>/submit-review", methods=['POST'])
+# @jwt_required()
+# def submit_for_review(doc_id):
+#     """Author submits QC-passed document to technical reviewers"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+            
+#         if not is_admin_or_author(user, doc):
+#             return jsonify({"error": "Only author or admin can submit"}), 403
+            
+#         if doc['status'] != 'QC Complete':
+#             return jsonify({"error": "Document must complete QC first"}), 400
+        
+#         data = request.get_json()
+#         reviewer_ids = data.get('reviewers', [])
+#         due_date = data.get('due_date')
+        
+#         if not reviewer_ids:
+#             return jsonify({"error": "At least one reviewer must be selected"}), 400
+        
+#         reviewers = []
+#         for reviewer_id in reviewer_ids:
+#             reviewers.append({
+#                 'user_id': ObjectId(reviewer_id),
+#                 'status': 'Pending',
+#                 'reviewed_at': None,
+#                 'comment': ''
+#             })
+        
+#         # Update document
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {'$set': {
+#                 'status': 'In Review',
+#                 'current_stage': 'Technical Review',
+#                 'reviewers': reviewers,
+#                 'review_due_date': due_date
+#             },
+#             '$push': {
+#                 'history': {
+#                     'action': 'Submitted for Technical Review',
+#                     'user_id': user_id,
+#                     'user_username': user['username'],
+#                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                     'details': f"Submitted to {len(reviewer_ids)} reviewer(s)"
+#                 }
+#             }}
+#         )
+        
+#         return jsonify({"message": "Document submitted for technical review"}), 200
+        
+#     except Exception as e:
+#         print(f"Error in submit_for_review: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+
+# @document_workflow_blueprint.route("/<doc_id>/technical-review", methods=['POST'])
+# @jwt_required()
+# def technical_review(doc_id):
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+
+#         if doc['status'] != 'In Review':
+#             return jsonify({"error": "Document is not in review"}), 400
+
+#         data = request.get_json()
+#         decision = data.get('decision')  # 'Approved', 'RequestChanges', 'RejectedCompletely'
+#         comment = data.get('comment', '')
+
+#         if decision not in ['Approved', 'RequestChanges', 'RejectedCompletely']:
+#             return jsonify({"error": "Invalid decision"}), 400
+
+#         # Handle Request Changes
+#         if decision == 'RequestChanges':
+#             db.documents.update_one(
+#                 {'_id': ObjectId(doc_id)},
+#                 {'$set': {
+#                     'status': 'Under Revision',
+#                     f'technical_reviews.{str(user_id)}.status': 'RequestChanges',
+#                     f'technical_reviews.{str(user_id)}.comment': comment,
+#                     f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
+#                 },
+#                     '$push': {
+#                         'history': {
+#                             'action': 'Technical Review - Changes Requested',
+#                             'user_id': user_id,
+#                             'user_username': user['username'],
+#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                             'details': comment
+#                         }
+#                     }}
+#             )
+#             return jsonify({"message": "Changes requested - document returned to author"}), 200
+
+#         # Handle Reject Completely (Withdrawn)
+#         if decision == 'RejectedCompletely':
+#             db.documents.update_one(
+#                 {'_id': ObjectId(doc_id)},
+#                 {'$set': {
+#                     'status': 'Withdrawn',
+#                     f'technical_reviews.{str(user_id)}.status': 'RejectedCompletely',
+#                     f'technical_reviews.{str(user_id)}.comment': comment,
+#                     f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc),
+#                     'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
+#                     'withdrawn_by': user['username']
+#                 },
+#                     '$push': {
+#                         'history': {
+#                             'action': 'Document Withdrawn (Rejected at Technical Review)',
+#                             'user_id': user_id,
+#                             'user_username': user['username'],
+#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                             'details': comment
+#                         }
+#                     }}
+#             )
+#             return jsonify({"message": "Document withdrawn completely"}), 200
+
+#         # Approved - Move to Pending Approval
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {'$set': {
+#                 'status': 'Pending Approval',
+#                 f'technical_reviews.{str(user_id)}.status': 'Approved',
+#                 f'technical_reviews.{str(user_id)}.comment': comment,
+#                 f'technical_reviews.{str(user_id)}.reviewed_at': datetime.datetime.now(datetime.timezone.utc)
+#             },
+#                 '$push': {
+#                     'history': {
+#                         'action': 'Technical Review Approved',
+#                         'user_id': user_id,
+#                         'user_username': user['username'],
+#                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                         'details': 'Document approved for final approval'
+#                     }
+#                 }}
+#         )
+#         return jsonify({"message": "Technical review approved"}), 200
+
+#     except Exception as e:
+#         print(f"Error in technical_review: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+# @document_workflow_blueprint.route("/<doc_id>/submit-approval", methods=['POST'])
+# @jwt_required()
+# def submit_for_approval(doc_id):
+#     """Author submits reviewed document to approver"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+            
+#         if not is_admin_or_author(user, doc):
+#             return jsonify({"error": "Only author or admin can submit"}), 403
+            
+#         if doc['status'] != 'Review Complete':
+#             return jsonify({"error": "Document must complete technical review first"}), 400
+        
+#         data = request.get_json()
+#         approver_id = data.get('approver')
+#         due_date = data.get('due_date') 
+        
+#         if not approver_id:
+#             return jsonify({"error": "Approver must be selected"}), 400
+        
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {'$set': {
+#                 'status': 'Pending Approval',
+#                 'current_stage': 'Final Approval',
+#                 'approver': {
+#                     'user_id': ObjectId(approver_id),
+#                     'status': 'Pending',
+#                     'approved_at': None,
+#                     'comment': '',
+#                     'due_date': due_date
+#                 }
+#             },
+#             '$push': {
+#                 'history': {
+#                     'action': 'Submitted for Final Approval',
+#                     'user_id': user_id,
+#                     'user_username': user['username'],
+#                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                     'details': 'Submitted for final approval and signature'
+#                 }
+#             }}
+#         )
+        
+#         return jsonify({"message": "Document submitted for final approval"}), 200
+        
+#     except Exception as e:
+#         print(f"Error in submit_for_approval: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+
+# @document_workflow_blueprint.route("/<doc_id>/final-approval", methods=['POST'])
+# @jwt_required()
+# def final_approval(doc_id):
+#     """Final approval with digital signature - increments major version and supersedes original if amendment"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+
+#         if doc['status'] != 'Pending Approval':
+#             return jsonify({"error": "Document is not pending approval"}), 400
+
+#         approver_data = doc.get('approver', {})
+#         if str(approver_data.get('user_id')) != str(user_id) and user['role'] != 'Admin':
+#             return jsonify({"error": "You are not the assigned approver"}), 403
+
+#         data = request.get_json()
+#         decision = data.get('decision')
+#         comment = data.get('comment', '')
+
+#         if decision not in ['Approved', 'RejectedWithRevisions', 'RejectedCompletely']:
+#             return jsonify({"error": "Invalid decision"}), 400
+
+#         # Handle Reject with Revisions
+#         if decision == 'RejectedWithRevisions':
+#             db.documents.update_one(
+#                 {'_id': ObjectId(doc_id)},
+#                 {'$set': {
+#                     'status': 'Approval Rejected',
+#                     'approver.status': 'RejectedWithRevisions',
+#                     'approver.comment': comment,
+#                     'approver.approved_at': datetime.datetime.now(datetime.timezone.utc)
+#                 },
+#                     '$push': {
+#                         'history': {
+#                             'action': 'Final Approval Rejected (Revisions Required)',
+#                             'user_id': user_id,
+#                             'user_username': user['username'],
+#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                             'details': comment
+#                         }
+#                     }}
+#             )
+#             return jsonify({"message": "Document rejected - revisions required"}), 200
+
+#         # Handle Reject Completely (Withdrawn)
+#         if decision == 'RejectedCompletely':
+#             db.documents.update_one(
+#                 {'_id': ObjectId(doc_id)},
+#                 {'$set': {
+#                     'status': 'Withdrawn',
+#                     'approver.status': 'RejectedCompletely',
+#                     'approver.comment': comment,
+#                     'approver.approved_at': datetime.datetime.now(datetime.timezone.utc),
+#                     'withdrawn_at': datetime.datetime.now(datetime.timezone.utc),
+#                     'withdrawn_by': user['username']
+#                 },
+#                     '$push': {
+#                         'history': {
+#                             'action': 'Document Withdrawn (Completely Rejected)',
+#                             'user_id': user_id,
+#                             'user_username': user['username'],
+#                             'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                             'details': comment
+#                         }
+#                     }}
+#             )
+#             return jsonify({"message": "Document withdrawn completely"}), 200
+
+#         # ✅ APPROVED - Apply digital signature
+#         try:
+#             # Get revisions safely
+#             revisions = doc.get('revisions', [])
+#             if not revisions:
+#                 return jsonify({"error": "Document has no file revisions"}), 400
+            
+#             active_rev_index = doc.get('active_revision', len(revisions) - 1)
+#             if active_rev_index >= len(revisions):
+#                 active_rev_index = len(revisions) - 1
+            
+#             active_rev = revisions[active_rev_index]
+            
+#             # Get file from GridFS
+#             file_data = fs.get(active_rev['file_id']).read()
+            
+#             # Sign with user's private key
+#             signature = sign_data(user['private_key'], file_data)
+            
+#         except Exception as sig_error:
+#             print(f"Signature error: {sig_error}")
+#             import traceback
+#             traceback.print_exc()
+#             return jsonify({"error": f"Failed to sign document: {str(sig_error)}"}), 500
+
+#         # Calculate new version - Increment MAJOR version (v1.1 → v2.0)
+#         new_major_version = doc.get('major_version', 0) + 1
+#         new_minor_version = 0
+        
+#         # Update document to Approved status with signature
+#         update_fields = {
+#             'status': 'Approved',
+#             'signature': signature,
+#             'signed_by_id': user_id,
+#             'signed_by_username': user['username'],
+#             'signed_by_public_key': user['public_key'],
+#             'signed_at': datetime.datetime.now(datetime.timezone.utc),
+#             'major_version': new_major_version,
+#             'minor_version': new_minor_version,
+#             'approver.status': 'Approved',
+#             'approver.comment': comment,
+#             'approver.approved_at': datetime.datetime.now(datetime.timezone.utc)
+#         }
+        
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {
+#                 '$set': update_fields,
+#                 '$push': {
+#                     'history': {
+#                         'action': 'Document Approved & Signed',
+#                         'user_id': user_id,
+#                         'user_username': user['username'],
+#                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                         'details': f"Document digitally signed. Version updated to {new_major_version}.{new_minor_version}. {comment}"
+#                     }
+#                 }
+#             }
+#         )
+        
+#         # ✅ If this is an amendment, mark the original document as Superseded
+#         if 'amended_from' in doc and doc['amended_from']:
+#             try:
+#                 original_doc_id = ObjectId(doc['amended_from'])
+#                 original_doc = db.documents.find_one({'_id': original_doc_id})
+                
+#                 if original_doc:
+#                     db.documents.update_one(
+#                         {'_id': original_doc_id},
+#                         {
+#                             '$set': {
+#                                 'status': 'Superseded',
+#                                 'superseded_by': str(doc['_id']),
+#                                 'superseded_at': datetime.datetime.now(datetime.timezone.utc)
+#                             },
+#                             '$push': {
+#                                 'history': {
+#                                     'action': 'Superseded by Amendment',
+#                                     'user_id': user_id,
+#                                     'user_username': user['username'],
+#                                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                                     'details': f"Superseded by approved amendment v{new_major_version}.{new_minor_version}"
+#                                 }
+#                             }
+#                         }
+#                     )
+#             except Exception as supersede_error:
+#                 print(f"Warning: Could not supersede original document: {supersede_error}")
+#                 # Don't fail approval if supersede fails
+        
+#         return jsonify({
+#             "message": "Document approved and signed successfully",
+#             "version": f"{new_major_version}.{new_minor_version}"
+#         }), 200
+
+#     except Exception as e:
+#         print(f"Error in final_approval: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
+# @document_workflow_blueprint.route("/<doc_id>/submit-qc", methods=['POST'])
+# @jwt_required()
+# def submit_for_qc(doc_id):
+#     """Author submits document to QC reviewers"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+            
+#         if not is_admin_or_author(user, doc):
+#             return jsonify({"error": "Only author or admin can submit"}), 403
+            
+#         if doc['status'] != 'Draft':
+#             return jsonify({"error": "Only draft documents can be submitted to QC"}), 400
+        
+#         data = request.get_json()
+#         qc_reviewer_ids = data.get('qc_reviewers', [])
+#         due_date = data.get('due_date')
+        
+#         if not qc_reviewer_ids:
+#             return jsonify({"error": "At least one QC reviewer must be selected"}), 400
+        
+#         qc_reviewers = []
+#         for reviewer_id in qc_reviewer_ids:
+#             qc_reviewers.append({
+#                 'user_id': ObjectId(reviewer_id),
+#                 'status': 'Pending',
+#                 'reviewed_at': None,
+#                 'comment': ''
+#             })
+        
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {'$set': {
+#                 'status': 'In QC',
+#                 'current_stage': 'QC',
+#                 'qc_reviewers': qc_reviewers,
+#                 'qc_due_date': due_date
+#             },
+#             '$push': {
+#                 'history': {
+#                     'action': 'Submitted for QC',
+#                     'user_id': user_id,
+#                     'user_username': user['username'],
+#                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                     'details': f"Submitted to {len(qc_reviewer_ids)} QC reviewer(s)"
+#                 }
+#             }}
+#         )
+        
+#         return jsonify({"message": "Document submitted to QC successfully"}), 200
+        
+#     except Exception as e:
+#         print(f"Error in submit_for_qc: {e}")
+#         return jsonify({"error": str(e)}), 500
+
+
+# @document_workflow_blueprint.route("/<doc_id>/submit-review-direct", methods=['POST'])
+# @jwt_required()
+# def submit_for_review_direct(doc_id):
+#     """Author submits draft document directly to technical reviewers (skip QC)"""
+#     try:
+#         user_id = ObjectId(get_jwt_identity())
+#         user = db.users.find_one({'_id': user_id})
+#         doc = db.documents.find_one({'_id': ObjectId(doc_id)})
+        
+#         if not doc or not user:
+#             return jsonify({"error": "Document or user not found"}), 404
+            
+#         if not is_admin_or_author(user, doc):
+#             return jsonify({"error": "Only author or admin can submit"}), 403
+            
+#         if doc['status'] != 'Draft':
+#             return jsonify({"error": "Only draft documents can be submitted"}), 400
+        
+#         data = request.get_json()
+#         reviewer_ids = data.get('reviewers', [])
+#         due_date = data.get('due_date')
+        
+#         if not reviewer_ids:
+#             return jsonify({"error": "At least one reviewer must be selected"}), 400
+        
+#         reviewers = []
+#         for reviewer_id in reviewer_ids:
+#             reviewers.append({
+#                 'user_id': ObjectId(reviewer_id),
+#                 'status': 'Pending',
+#                 'reviewed_at': None,
+#                 'comment': ''
+#             })
+        
+#         db.documents.update_one(
+#             {'_id': ObjectId(doc_id)},
+#             {'$set': {
+#                 'status': 'In Review',
+#                 'current_stage': 'Technical Review',
+#                 'reviewers': reviewers,
+#                 'review_due_date': due_date,
+#                 'qc_skipped': True  # Mark that QC was skipped
+#             },
+#             '$push': {
+#                 'history': {
+#                     'action': 'Submitted for Technical Review (QC Skipped)',
+#                     'user_id': user_id,
+#                     'user_username': user['username'],
+#                     'timestamp': datetime.datetime.now(datetime.timezone.utc),
+#                     'details': f"Low-risk document - QC skipped. Submitted to {len(reviewer_ids)} reviewer(s)"
+#                 }
+#             }}
+#         )
+        
+#         return jsonify({"message": "Document submitted for technical review (QC skipped)"}), 200
+        
+#     except Exception as e:
+#         print(f"Error in submit_for_review_direct: {e}")
+#         return jsonify({"error": str(e)}), 500

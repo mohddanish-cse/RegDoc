@@ -20,7 +20,7 @@ function DocumentMenu({
   const [availableSystems, setAvailableSystems] = useState([]);
   const [loadingSystems, setLoadingSystems] = useState(false);
   const [showIntegrationSubmenu, setShowIntegrationSubmenu] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false); // ✅ NEW
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   if (!document || !user) return null;
 
@@ -42,12 +42,13 @@ function DocumentMenu({
     ].includes(status) &&
     (isAuthor || isAdmin);
 
-  // ✅ NEW: Can delete only Draft and Withdrawn documents
+  // Can delete only Draft and Withdrawn documents
   const canDelete =
     ["Draft", "Withdrawn"].includes(status) && (isAuthor || isAdmin);
 
   const canMarkObsolete =
-    status === "Approved" && (isAdmin || role === "Quality Manager");
+    status === "Approved" &&
+    (isAdmin || isAuthor || role === "Quality Manager");
 
   const canArchive =
     ["Approved", "Superseded"].includes(status) &&
@@ -62,7 +63,7 @@ function DocumentMenu({
     canArchive ||
     showAmend ||
     canSendToSystems ||
-    canDelete; // ✅ NEW
+    canDelete;
 
   // Fetch available systems
   const fetchAvailableSystems = async () => {
@@ -105,7 +106,7 @@ function DocumentMenu({
       setShowDeleteModal(false);
       navigate("/library", { replace: true });
 
-      if (onDelete) onDelete(); // Notify parent component
+      if (onDelete) onDelete();
     } catch (error) {
       console.error("Error deleting document:", error);
       toast.error(error.message || "Failed to delete document", {
@@ -370,7 +371,6 @@ function DocumentMenu({
               </Menu.Item>
             )}
 
-            {/* ✅ NEW: Delete Button */}
             {canDelete && (
               <Menu.Item>
                 {({ active }) => (
@@ -409,7 +409,6 @@ function DocumentMenu({
         </Transition>
       </Menu>
 
-      {/* ✅ NEW: Delete Confirmation Modal */}
       <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
