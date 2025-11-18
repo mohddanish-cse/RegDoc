@@ -9,17 +9,17 @@ integration_blueprint = Blueprint('integration', __name__)
 
 # TMF Zone to System Mapping
 ZONE_SYSTEM_MAPPING = {
-    "01": ["RIMS", "Regulatory Portal"],
+    "01": ["RIMS"],
     "02": ["RIMS", "Site Portal", "EDC", "Safety DB"],
     "03": ["RIMS", "Site Portal"],
     "04": ["IRT", "Site Portal"],
     "05": ["Safety DB", "Site Portal", "EDC", "RIMS"],
-    "06": ["Site Portal", "Training Portal"],
+    "06": ["Site Portal"],
     "07": ["EDC", "Site Portal"],
     "08": ["IRT", "RIMS", "Site Portal"],
     "09": ["EDC", "Safety DB"],
-    "10": ["RIMS", "Budget System"],
-    "11": ["Site Portal", "Regulatory Portal"],
+    "10": ["RIMS"],
+    "11": ["Site Portal"],
 }
 
 CTMS_ALWAYS = "CTMS"
