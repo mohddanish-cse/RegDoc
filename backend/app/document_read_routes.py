@@ -162,6 +162,8 @@ def get_document_details(doc_id):
         # Due dates
         response_data['qc_due_date'] = doc_metadata.get('qc_due_date')
         response_data['review_due_date'] = doc_metadata.get('review_due_date')
+        response_data['approval_due_date'] = doc_metadata.get('approval_due_date')
+
         
         # ✅ SIGNATURE INFO - SAFE ACCESS
         if 'signature' in doc_metadata and doc_metadata.get('signature'):
